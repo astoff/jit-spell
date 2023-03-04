@@ -156,7 +156,7 @@ character offset from START, and a list of corrections."
          (i (abs count)))
     (catch 'jit-spell
       (while (/= pos limit)
-        (setq pos (funcall searchfn pos 'jit-spell-corrections nil limit))
+        (setq pos (funcall searchfn pos 'category nil limit))
         (dolist (ov (overlays-at pos))
           (when (eq (overlay-get ov 'category) 'jit-spell)
             (cl-decf i)
@@ -395,33 +395,49 @@ the above)."
                (`(?s ,_) 'session)))))
   (jit-lock-refontify))
 
-(defun jit-spell-correct-word (arg)
+(defun jit-spell-correct-word--next (arg)
+  "Perform a spooky action at a distance."
+  (interactive "p")
+  (throw 'jit-spell-correct-word--next arg))
+
+(defun jit-spell-correct-word (arg &optional pos)
   "Correct a misspelled word in the selected window.
-With a numeric ARG, skip over that many misspellings.
 
 You can also accept the spelling in question by entering `@' in
 the prompt.  It is possible to modify the spelling to be
 accepted, say change capitalization or inflection, by entering
-any text after the `@'."
+any text after the `@'.
+
+With a numeric ARG, move backwards that many misspellings.
+Alternatively, pressing \\<jit-spell-mode-map>\\[jit-spell-correct-word] \
+again moves to the next misspelling."
   (interactive "p")
-  (let* ((ov (or (jit-spell--search-overlay (point) (- arg))
-                 (user-error "No misspellings")))
+  (let* ((ov (or (jit-spell--search-overlay (or pos (point)) (- arg))
+                 (user-error "No more misspellings")))
          (start (overlay-start ov))
          (end (overlay-end ov))
          (word (buffer-substring-no-properties start end))
-         (highlight (make-overlay start end)))
-    (unwind-protect
-        (progn
-          (overlay-put highlight 'face 'highlight)
-          (let* ((corr (completing-read
-                        (format-prompt "Correct `%s' (enter `@' to accept)" nil word)
-                        (append (overlay-get ov 'jit-spell-corrections)
-                                (list (concat "@" word)))
-                        nil nil nil nil nil t)))
-            (if (string-match "\\`@\\s-*\\(.+\\)?" corr)
-                (jit-spell-accept-word (or (match-string 1 corr) word) 'query)
-              (jit-spell--apply-correction ov corr))))
-      (delete-overlay highlight))))
+         (highlight (make-overlay start end))
+         (map (make-sparse-keymap))
+         (prompt (format-prompt "Correct `%s' (`@' to accept)" nil word))
+         (coll (append (overlay-get ov 'jit-spell-corrections)
+                       (list (concat "@" word)))))
+    (dolist (key (where-is-internal 'jit-spell-correct-word))
+      (define-key map key 'jit-spell-correct-word--next))
+    (overlay-put highlight 'face 'highlight)
+    (pcase (catch 'jit-spell-correct-word--next
+             (minibuffer-with-setup-hook
+                 (lambda ()
+                   (set-keymap-parent map (current-local-map))
+                   (use-local-map map))
+               (unwind-protect
+                   (completing-read prompt coll nil nil nil nil nil t)
+                 (delete-overlay highlight))))
+      ((and count (pred numberp))
+       (jit-spell-correct-word count (overlay-start ov)))
+      ((and corr (rx bos ?@ (* space) (? (group (+ nonl)))))
+       (jit-spell-accept-word (or (match-string 1 corr) word) 'query))
+      (corr (jit-spell--apply-correction ov corr)))))
 
 (defalias 'jit-spell-change-dictionary 'ispell-change-dictionary) ;For discoverability
 
