@@ -502,11 +502,16 @@ again moves to the next misspelling."
   (jit-spell--unfontify))
 
 ;; Don't litter M-x
-(put 'jit-spell--context-menu 'completion-predicate #'ignore)
+(dolist (sym '(jit-spell--context-menu
+               jit-spell-correct-word--next))
+  (put sym 'completion-predicate #'ignore))
+
 (dolist (sym '(jit-spell-change-dictionary
                jit-spell-correct-word
                jit-spell-accept-word))
-  (put sym 'completion-predicate (lambda (&rest _) jit-spell-mode)))
+  (put sym 'completion-predicate (lambda (_ buffer)
+                                   (buffer-local-value 'jit-spell-mode
+                                                       buffer))))
 
 (provide 'jit-spell)
 
