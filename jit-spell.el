@@ -29,7 +29,6 @@
 
 (require 'compat)
 (require 'ispell)
-(require 'seq)
 (eval-when-compile (require 'subr-x))
 
 (defgroup jit-spell nil
