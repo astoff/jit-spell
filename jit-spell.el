@@ -456,15 +456,11 @@ again moves to the next misspelling."
              (not (memq this-command jit-spell-delayed-commands)))
     (jit-spell--unhide-overlay)))
 
-(defvar-keymap jit-spell-mode-map
-  :doc "Keymap for `jit-spell-mode'."
-  "C-;" #'jit-spell-correct-word
-  "C-:" #'jit-spell-accept-word)
+(defvar-keymap jit-spell-mode-map :doc "Keymap for `jit-spell-mode'.")
 
 ;;;###autoload
 (define-minor-mode jit-spell-mode
   "Just-in-time spell checking."
-  :keymap jit-spell-mode-map
   :lighter (" Spell"
             (:propertize
              (:eval
