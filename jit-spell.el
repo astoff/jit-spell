@@ -1,6 +1,6 @@
 ;;; jit-spell.el --- Just-in-time spell checking      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2023  Augusto Stoffel
+;; Copyright (C) 2023  Free Software Foundation, Inc.
 
 ;; Author: Augusto Stoffel <arstoffel@gmail.com>
 ;; Keywords: tools, wp
@@ -23,7 +23,27 @@
 
 ;;; Commentary:
 
-;; TODO
+;; This package provides `jit-spell-mode', a local minor mode to
+;; highlight all misspelled words in a window, just like a word
+;; processor or web browser does.
+;;
+;; This behavior is different from Flyspell, which only checks words
+;; as the cursor moves over them.  Moreover, unlike Flyspell,
+;; jit-spell communicates with the spell-checking subprocess entirely
+;; asynchronously, which can lead to a noticeable performance
+;; improvement.
+;;
+;; To set up jit-spell, add your desired variation of the following to
+;; your init file:
+;;
+;;   (add-hook 'text-mode-hook 'jit-spell-mode)
+;;   (add-hook 'prog-mode-hook 'jit-spell-mode)
+;;   (with-eval-after-load 'jit-spell
+;;     (define-key jit-spell-mode-map (kbd "C-;") 'jit-spell-correct-word))
+;;
+;; jit-spell relies on the `ispell' library to pick a spell checking
+;; program and dictionaries.  Try `M-x customize-group ispell' to see
+;; a listing of all possible settings.
 
 ;;; Code:
 
