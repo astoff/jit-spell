@@ -95,6 +95,14 @@ highlighting a misspelling at point after one of these commands.")
 It should be a function taking two arguments, the start and end
 positions of the word.")
 
+(defvar jit-spell--filter-region #'jit-spell--filter-region
+  "Function to extract regions of interest from the buffer.
+It receives the start and end positions of a region as argument,
+and should return a list of cons cells representing subregions.
+
+This function is called inside a `save-excursion' form and can
+move the point with impunity.")
+
 (defvar jit-spell--process-pool nil
   "A collection of ispell processes for `jit-spell-mode'.")
 
@@ -326,14 +334,6 @@ The process plist includes the following properties:
   (pcase-let ((`(,buffer _ ,start ,end) request))
     (with-current-buffer buffer
       (let ((text (buffer-substring-no-properties start end)))
-                                        ;TODO: allow custom
-                                        ;buffer-substring functions
-                                        ;e.g. to work around
-                                        ;hunspell's apostrophe issue.
-        ;; Redact control characters in text
-        (dotimes (i (length text))
-          (when (< (aref text i) ?\s)
-            (aset text i ?\s)))
         (process-send-string proc "^")
         (process-send-string proc text)
         (process-send-string proc "\n")))))
@@ -363,21 +363,33 @@ The process plist includes the following properties:
                                  (pop (process-get proc 'jit-spell--requests)))))
           (jit-spell--send-request proc request))))))
 
+(defun jit-spell--filter-region (start end)
+  "Return a list of subregions without control characters between START and END."
+  (goto-char start)
+  (let (regions)
+    (while (re-search-forward (rx (+ print)) end t)
+      (push (cons (match-beginning 0) (match-end 0)) regions))
+    regions))
+
 (defun jit-spell--check-region (start end)
   "Enqueue a spell check request for region between START and END.
 This is intended to be a member of `jit-lock-functions'."
-  (save-excursion ;; Extend region to include whole words
+  (save-excursion
+    ;; Extend region to include whole words
     (goto-char start)
     (setq start (if (re-search-backward "\\s-" nil t) (match-end 0) (point-min)))
     (goto-char end)
-    (setq end (or (re-search-forward "\\s-" nil t) (point-max))))
-  (put-text-property start end 'jit-spell-pending t)
-  (let ((proc (jit-spell--get-process))
-        (request (list (current-buffer) (buffer-chars-modified-tick) start end)))
-    (if (process-get proc 'jit-spell--current-request)
-        (push request (process-get proc 'jit-spell--requests))
-      (jit-spell--send-request proc request)))
-  `(jit-lock-bounds ,start . ,end))
+    (setq end (or (re-search-forward "\\s-" nil t) (point-max)))
+    (let ((proc (jit-spell--get-process))
+          (buffer (current-buffer))
+          (tick (buffer-chars-modified-tick)))
+      (pcase-dolist (`(,i . ,j) (funcall jit-spell--filter-region start end))
+        (put-text-property i j 'jit-spell-pending t)
+        (let ((request (list buffer tick i j)))
+          (if (process-get proc 'jit-spell--current-request)
+              (push request (process-get proc 'jit-spell--requests))
+            (jit-spell--send-request proc request)))))
+    `(jit-lock-bounds ,start . ,end)))
 
 ;;; Interactive commands and major mode
 
@@ -520,6 +532,7 @@ again moves to the next misspelling."
     (remove-hook 'context-menu-functions 'jit-spell--context-menu t)
     (remove-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify t)
     (kill-local-variable 'ispell-buffer-session-localwords)
+    (kill-local-variable 'jit-spell--filter-region)
     (kill-local-variable 'jit-spell-delayed-commands)
     (kill-local-variable 'jit-spell-ignored-p)))
   (jit-spell--unfontify))
