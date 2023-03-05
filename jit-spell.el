@@ -82,6 +82,16 @@
   "Faces jit-spell should check in modes derived from `prog-mode'."
   :type '(repeat face))
 
+(defcustom jit-spell-use-apostrophe-hack 'auto
+  "Whether to work around Hunspell's issue parsing apostrophes.
+
+In some languages, Hunspell always considers the apostrophe
+character (a.k.a. straight quote) part of the word, which leads
+to false positives when it is used as a quotation mark."
+  :type '(choice (const :tag "Decide automatically" auto)
+                 (const :tag "Yes" t)
+                 (const :tag "No" nil)))
+
 (defvar jit-spell-delayed-commands
   '(backward-delete-char-untabify
     delete-backward-char
@@ -371,6 +381,23 @@ The process plist includes the following properties:
       (push (cons (match-beginning 0) (match-end 0)) regions))
     regions))
 
+(defun jit-spell--apostrophe-hack (regions)
+  "Refine REGIONS to work around Hunspell's apostrophe issue."
+  (mapcan
+   (pcase-lambda (`(,i . ,limit)) ;; Refine one region
+     (let (result)
+       (goto-char i)
+       (while (re-search-forward
+               (rx (or (seq (or bol (not alpha)) (group ?') alpha)
+                       (seq alpha (group ?') (or (not alpha) eol))))
+               limit t)
+         (backward-char)
+         (let ((j (or (match-end 1) (match-beginning 2))))
+           (push (cons i j) result)
+           (setq i j)))
+       (push (cons i limit) result)))
+   regions))
+
 (defun jit-spell--check-region (start end)
   "Enqueue a spell check request for region between START and END.
 This is intended to be a member of `jit-lock-functions'."
@@ -521,6 +548,11 @@ again moves to the next misspelling."
       (setq-local jit-spell-delayed-commands
                   (append '(org-delete-backward-char org-self-insert-command)
                           jit-spell-delayed-commands))))
+    (when (if (eq 'auto jit-spell-use-apostrophe-hack)
+              ispell-really-hunspell
+            jit-spell-use-apostrophe-hack)
+      (add-function :filter-return (local 'jit-spell--filter-region)
+                    #'jit-spell--apostrophe-hack))
     (jit-spell--read-local-words)
     (add-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify nil t)
     (add-hook 'context-menu-functions 'jit-spell--context-menu nil t)
@@ -551,4 +583,5 @@ again moves to the next misspelling."
 
 (provide 'jit-spell)
 
+; LocalWords:  jit ispell
 ;;; jit-spell.el ends here
