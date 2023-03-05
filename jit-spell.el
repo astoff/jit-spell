@@ -330,14 +330,11 @@ ispell process."
 
 (defun jit-spell--schedule-pending-checks (buffer)
   "Schedule a call to `jit-spell--check-pending-regions' in BUFFER."
-  (when (buffer-live-p buffer)
-    (when (bound-and-true-p jit-spell--debug)
-      (message "Scheduled recheck"))
-    (with-current-buffer buffer
-      (when (timerp jit-spell--recheck-timer)
-        (cancel-timer jit-spell--recheck-timer))
-      (setq jit-spell--recheck-timer
-            (run-with-idle-timer 0.1 nil #'jit-spell--check-pending-regions buffer)))))
+  (with-current-buffer buffer
+    (when (timerp jit-spell--recheck-timer)
+      (cancel-timer jit-spell--recheck-timer))
+    (setq jit-spell--recheck-timer
+          (run-with-idle-timer 0.1 nil #'jit-spell--check-pending-regions buffer))))
 
 (defun jit-spell--check-pending-regions (buffer)
   "Enqueue spell check requests for all pending regions of BUFFER."
