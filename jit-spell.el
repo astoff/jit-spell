@@ -53,14 +53,14 @@
     font-latex-sedate-face
     message-header-name)
   "Faces jit-spell should ignore."
-  :type '(repeat symbol))
+  :type '(repeat face))
 
 (defcustom jit-spell-prog-mode-faces
   '(font-lock-comment-face
     font-lock-doc-face
     font-lock-string-face)
   "Faces jit-spell should check in modes derived from `prog-mode'."
-  :type '(repeat symbol))
+  :type '(repeat face))
 
 (defvar jit-spell-delayed-commands
   '(backward-delete-char-untabify
