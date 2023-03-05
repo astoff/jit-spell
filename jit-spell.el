@@ -64,6 +64,7 @@
 
 (defvar jit-spell-delayed-commands
   '(backward-delete-char-untabify
+    delete-backward-char
     self-insert-command)
   "List of commands with delayed spell checking.
 Wait for `jit-spell-current-word-delay' seconds before
