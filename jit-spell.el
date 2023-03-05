@@ -47,9 +47,9 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'compat)
 (require 'ispell)
-(eval-when-compile (require 'subr-x))
 
 (defgroup jit-spell nil
   "Check spelling as you type."
@@ -224,11 +224,11 @@ It can also be bound to a mouse click to pop up the menu."
                             (vector corr (lambda () (interactive)
                                            (jit-spell--apply-correction ov corr)))))
       (easy-menu-add-item map nil `["Save to Dictionary"
-                                    (jit-spell-accept-word ,word 'dict)])
+                                    (jit-spell--accept-word ,word 'dict)])
       (easy-menu-add-item map nil `["Save to Buffer"
-                                    (jit-spell-accept-word ,word 'buffer)])
+                                    (jit-spell--accept-word ,word 'buffer)])
       (easy-menu-add-item map nil `["Accept for Session"
-                                    (jit-spell-accept-word ,word 'session)])
+                                    (jit-spell--accept-word ,word 'session)])
       (unless menu (popup-menu map)))
     menu))
 
@@ -420,36 +420,22 @@ This is intended to be a member of `jit-lock-functions'."
 
 ;;; Interactive commands and major mode
 
-(defun jit-spell-accept-word (word where)
+(defun jit-spell--accept-word (word where)
   "Accept spelling of WORD.
 WHERE can be `dict' (save in personal dictionary), `buffer' (save
 as a local word at the end of the buffer), `session' (accept
 temporarily and in this buffer only), or `query' (ask for one of
 the above)."
-  (interactive
-   (list (completing-read
-          "Add word: "
-          (thread-last
-            (overlays-in (window-start) (window-end))
-            (seq-sort (lambda (o1 o2) (< (overlay-start o1)
-                                         (overlay-start o2))))
-            (seq-keep (lambda (ov)
-                        (when (eq (overlay-get ov 'category) 'jit-spell)
-                          (buffer-substring-no-properties
-                           (overlay-start ov) (overlay-end ov))))))
-          nil nil nil nil
-          (thing-at-point 'word))
-         'query))
   (pcase-exhaustive where
     ('session (when ispell-buffer-local-name
                 (setq ispell-buffer-local-name (buffer-name)))
               (cl-pushnew word ispell-buffer-session-localwords
                           :test #'equal))
     ('buffer (ispell-add-per-file-word-list word)
-             (jit-spell-accept-word word 'session))
+             (jit-spell--accept-word word 'session))
     ('dict (process-send-string (jit-spell--get-process)
                                 (format "*%s\n#\n" word)))
-    ('query (jit-spell-accept-word
+    ('query (jit-spell--accept-word
              word
              (pcase (read-multiple-choice (substitute-quotes
                                            (format "Add `%s' to" word))
@@ -460,6 +446,7 @@ the above)."
                (`(?b ,_) 'buffer)
                (`(?s ,_) 'session)))))
   (jit-lock-refontify))
+(define-obsolete-function-alias 'jit-spell-accept-word 'jit-spell--accept-word "0.2")
 
 (defun jit-spell-correct-word--next (arg)
   "Perform a spooky action at a distance."
@@ -502,7 +489,7 @@ again moves to the next misspelling."
       ((and count (pred numberp))
        (jit-spell-correct-word count (overlay-start ov)))
       ((and corr (rx bos ?@ (* space) (? (group (+ nonl)))))
-       (jit-spell-accept-word (or (match-string 1 corr) word) 'query))
+       (jit-spell--accept-word (or (match-string 1 corr) word) 'query))
       (corr (jit-spell--apply-correction ov corr)))))
 
 (defalias 'jit-spell-change-dictionary 'ispell-change-dictionary) ;For discoverability
@@ -514,7 +501,7 @@ again moves to the next misspelling."
     (while (search-forward ispell-words-keyword nil t)
       (let ((limit (pos-eol)))
 	(while (re-search-forward "\\s-*\\(\\S-+\\)" limit t)
-          (jit-spell-accept-word (match-string-no-properties 1) 'session))))))
+          (jit-spell--accept-word (match-string-no-properties 1) 'session))))))
 
 (defun jit-spell--pre-command-hook ()
   "Pre-command hook for `jit-spell-mode'."
@@ -575,8 +562,7 @@ again moves to the next misspelling."
   (put sym 'completion-predicate #'ignore))
 
 (dolist (sym '(jit-spell-change-dictionary
-               jit-spell-correct-word
-               jit-spell-accept-word))
+               jit-spell-correct-word))
   (put sym 'completion-predicate (lambda (_ buffer)
                                    (buffer-local-value 'jit-spell-mode
                                                        buffer))))
