@@ -234,16 +234,26 @@ It can also be bound to a mouse click to pop up the menu."
 ;;; Subprocess communication
 
 (defun jit-spell--process-parameters ()
-  "Return a list of parameters for this buffer's ispell process.
-Buffers where this produces `equal' results will share their
-ispell process."
+  "Return a list of parameters for this buffer's ispell process."
   (list ispell-program-name
         ispell-current-dictionary
         ispell-current-personal-dictionary
         ispell-extra-args))
 
 (defun jit-spell--get-process ()
-  "Get an ispell process for the current buffer."
+  "Get an ispell process for the current buffer.
+Buffers where `jit-spell--process-parameters' returns the `equal'
+results share their ispell process.
+
+The process plist includes the following properties:
+
+`jit-spell--current request': a list of the form
+    (BUFFER TICK START END)
+  where TICK is used to keep track of the timeliness of the response.
+  Note that the process receives a single request at a time.
+
+`jit-spell--requests': a FIFO queue with elements in the same
+  form as above."
   (let* ((params (jit-spell--process-parameters))
          (proc (plist-get jit-spell--process-pool params #'equal)))
     (if (process-live-p proc)
