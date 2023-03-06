@@ -92,13 +92,8 @@ to false positives when it is used as a quotation mark."
                  (const :tag "Yes" t)
                  (const :tag "No" nil)))
 
-(defvar jit-spell-delayed-commands
-  '(backward-delete-char-untabify
-    delete-backward-char
-    self-insert-command)
-  "List of commands with delayed spell checking.
-Wait for `jit-spell-current-word-delay' seconds before
-highlighting a misspelling at point after one of these commands.")
+(defvar jit-spell-delayed-commands nil)
+(make-obsolete-variable 'jit-spell-delayed-commands "Not necessary anymore" "0.2")
 
 (defvar jit-spell-ignored-p #'jit-spell--default-ignored-p
   "Predicate satisfied by words to ignore.
@@ -503,12 +498,6 @@ again moves to the next misspelling."
 	(while (re-search-forward "\\s-*\\(\\S-+\\)" limit t)
           (jit-spell--accept-word (match-string-no-properties 1) 'session))))))
 
-(defun jit-spell--pre-command-hook ()
-  "Pre-command hook for `jit-spell-mode'."
-  (when (and jit-spell--hidden-overlay
-             (not (memq this-command jit-spell-delayed-commands)))
-    (jit-spell--unhide-overlay)))
-
 (defvar-keymap jit-spell-mode-map :doc "Keymap for `jit-spell-mode'.")
 
 ;;;###autoload
@@ -530,11 +519,7 @@ again moves to the next misspelling."
     (cond
      ((derived-mode-p 'prog-mode)
       (add-function :before-until (local 'jit-spell-ignored-p)
-                    #'jit-spell--prog-ignored-p))
-     ((derived-mode-p 'org-mode)
-      (setq-local jit-spell-delayed-commands
-                  (append '(org-delete-backward-char org-self-insert-command)
-                          jit-spell-delayed-commands))))
+                    #'jit-spell--prog-ignored-p)))
     (when (if (eq 'auto jit-spell-use-apostrophe-hack)
               ispell-really-hunspell
             jit-spell-use-apostrophe-hack)
@@ -543,16 +528,13 @@ again moves to the next misspelling."
     (jit-spell--read-local-words)
     (add-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify nil t)
     (add-hook 'context-menu-functions 'jit-spell--context-menu nil t)
-    (add-hook 'pre-command-hook #'jit-spell--pre-command-hook nil t)
     (jit-lock-register #'jit-spell--check-region))
    (t
     (jit-lock-unregister #'jit-spell--check-region)
-    (remove-hook 'pre-command-hook #'jit-spell--pre-command-hook)
     (remove-hook 'context-menu-functions 'jit-spell--context-menu t)
     (remove-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify t)
     (kill-local-variable 'ispell-buffer-session-localwords)
     (kill-local-variable 'jit-spell--filter-region)
-    (kill-local-variable 'jit-spell-delayed-commands)
     (kill-local-variable 'jit-spell-ignored-p)))
   (jit-spell--unfontify))
 
