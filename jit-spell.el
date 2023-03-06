@@ -95,10 +95,11 @@ to false positives when it is used as a quotation mark."
 (defvar jit-spell-delayed-commands nil)
 (make-obsolete-variable 'jit-spell-delayed-commands "Not necessary anymore" "0.2")
 
-(defvar jit-spell-ignored-p #'jit-spell--default-ignored-p
+(defvar jit-spell--ignored-p #'jit-spell--default-ignored-p
   "Predicate satisfied by words to ignore.
 It should be a function taking two arguments, the start and end
 positions of the word.")
+(make-obsolete-variable 'jit-spell-ignored-p 'jit-spell--ignored-p "0.2")
 
 (defvar jit-spell--filter-region #'jit-spell--filter-region
   "Function to extract regions of interest from the buffer.
@@ -171,7 +172,7 @@ character offset from START, and a list of corrections."
       (pcase-dolist (`(,word ,offset ,corrections) misspellings)
         (let* ((wstart (+ start offset -1))
                (wend (+ wstart (length word))))
-          (unless (funcall jit-spell-ignored-p wstart wend)
+          (unless (funcall jit-spell--ignored-p wstart wend)
             (jit-spell--make-overlay wstart wend corrections)))))))
 
 (defun jit-spell--overlay-at (pos)
@@ -518,8 +519,14 @@ again moves to the next misspelling."
    (jit-spell-mode
     (cond
      ((derived-mode-p 'prog-mode)
-      (add-function :before-until (local 'jit-spell-ignored-p)
+      (add-function :before-until (local 'jit-spell--ignored-p)
                     #'jit-spell--prog-ignored-p)))
+    (when-let ((pred (or (bound-and-true-p flyspell-generic-check-word-predicate)
+                         (get major-mode 'flyspell-mode-predicate))))
+      (add-function :after-until (local 'jit-spell--ignored-p)
+                    (lambda (_start end) (save-excursion
+                                           (goto-char end)
+                                           (not (funcall pred))))))
     (when (if (eq 'auto jit-spell-use-apostrophe-hack)
               ispell-really-hunspell
             jit-spell-use-apostrophe-hack)
@@ -535,7 +542,7 @@ again moves to the next misspelling."
     (remove-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify t)
     (kill-local-variable 'ispell-buffer-session-localwords)
     (kill-local-variable 'jit-spell--filter-region)
-    (kill-local-variable 'jit-spell-ignored-p)))
+    (kill-local-variable 'jit-spell--ignored-p)))
   (jit-spell--unfontify))
 
 ;; Don't litter M-x
