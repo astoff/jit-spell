@@ -118,6 +118,9 @@ move the point with impunity.")
 (defvar-local jit-spell--recheck-timer nil
   "Timer to debounce recheck requests.")
 
+(defvar-local jit-spell--local-words nil
+  "A list of words accepted temporarily in this buffer.")
+
 ;;; Mode-specific support
 
 (defun jit-spell--default-ignored-p (start end)
@@ -129,7 +132,7 @@ move the point with impunity.")
                       face)
           (memq face jit-spell-ignored-faces)))
       (member (buffer-substring-no-properties start end)
-              ispell-buffer-session-localwords)))
+              jit-spell--local-words)))
 
 (defun jit-spell--prog-ignored-p (start _end)
   "Additional ignore predicate for `prog-mode'."
@@ -425,7 +428,7 @@ the above)."
   (pcase-exhaustive where
     ('session (when ispell-buffer-local-name
                 (setq ispell-buffer-local-name (buffer-name)))
-              (cl-pushnew word ispell-buffer-session-localwords
+              (cl-pushnew word jit-spell--local-words
                           :test #'equal))
     ('buffer (ispell-add-per-file-word-list word)
              (jit-spell--accept-word word 'session))
@@ -541,7 +544,7 @@ again moves to the next misspelling."
     (jit-lock-unregister #'jit-spell--check-region)
     (remove-hook 'context-menu-functions 'jit-spell--context-menu t)
     (remove-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify t)
-    (kill-local-variable 'ispell-buffer-session-localwords)
+    (kill-local-variable 'jit-spell--local-words)
     (kill-local-variable 'jit-spell--filter-region)
     (kill-local-variable 'jit-spell--ignored-p)))
   (jit-spell--unfontify))
