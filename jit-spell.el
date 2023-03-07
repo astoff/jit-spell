@@ -524,9 +524,10 @@ again moves to the next misspelling."
     (when-let ((pred (or (bound-and-true-p flyspell-generic-check-word-predicate)
                          (get major-mode 'flyspell-mode-predicate))))
       (add-function :after-until (local 'jit-spell--ignored-p)
-                    (lambda (_start end) (save-excursion
-                                           (goto-char end)
-                                           (not (funcall pred))))))
+                    (lambda (_start end) (ignore-errors
+                                           (save-excursion
+                                             (goto-char end)
+                                             (not (funcall pred)))))))
     (when (if (eq 'auto jit-spell-use-apostrophe-hack)
               ispell-really-hunspell
             jit-spell-use-apostrophe-hack)
