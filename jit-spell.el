@@ -69,10 +69,20 @@
   :type 'number)
 
 (defcustom jit-spell-ignored-faces
-  '(font-latex-math-face
-    font-latex-sedate-face
-    message-header-name)
+  '(message-header-name)
   "Faces jit-spell should ignore."
+  :type '(repeat face))
+
+(defcustom jit-spell-tex-ignored-faces
+  '(font-latex-math-face
+    font-latex-verbatim-face
+    font-latex-sedate-face
+    font-lock-function-name-face
+    font-lock-keyword-face
+    font-lock-variable-name-face
+    tex-math
+    tex-verbatim)
+  "Faces jit-spell should ignore in TeX and derived modes."
   :type '(repeat face))
 
 (defcustom jit-spell-prog-mode-faces
@@ -242,8 +252,7 @@ It can also be bound to a mouse click to pop up the menu."
 (defun jit-spell--unfontify (&optional start end lax)
   "Remove overlays and forget checking status from START to END (or whole buffer).
 Force refontification of the region, unless LAX is non-nil."
-  (save-restriction
-    (widen)
+  (without-restriction
     (setq start (or start (point-min)))
     (setq end (or end (point-max)))
     (remove-overlays start end 'category 'jit-spell)
@@ -381,6 +390,31 @@ The process plist includes the following properties:
     (while (re-search-forward (rx (+ print)) end t)
       (push (cons (match-beginning 0) (match-end 0)) regions))
     regions))
+
+(defun jit-spell--has-face-p (faces v)
+  "Non-nil if V, a face or list of faces, includes any of the FACES."
+  (if (listp v)
+      (seq-some (lambda (f) (memq f faces)) v)
+    (memq v faces)))
+
+(defun jit-spell--refine-by-face (faces &optional only)
+  "Return a function to refine a list of regions based on its faces.
+If ONLY is nil, regions containing any of the FACES are excluded.
+Otherwise, only such regions are kept."
+  (let ((pred (if only
+                  #'jit-spell--has-face-p
+                (lambda (faces v) (not (jit-spell--has-face-p faces v))))))
+    (lambda (regions)
+      (mapcan
+       (pcase-lambda (`(,i . ,limit)) ;; Refine one region
+         (let (result)
+           (with-restriction i limit
+             (goto-char i)
+             (while-let ((prop (text-property-search-forward 'face faces pred)))
+               (push `(,(prop-match-beginning prop) . ,(prop-match-end prop))
+                   result)))
+           result))
+       regions))))
 
 (defun jit-spell--apostrophe-hack (regions)
   "Refine REGIONS to work around Hunspell's apostrophe issue."
@@ -522,10 +556,15 @@ again moves to the next misspelling."
                                    (mouse-1 . ispell-change-dictionary)))))
   (cond
    (jit-spell-mode
+    ;; Major mode support
     (cond
      ((derived-mode-p 'prog-mode)
-      (add-function :before-until (local 'jit-spell--ignored-p)
-                    #'jit-spell--prog-ignored-p)))
+      (add-function :filter-return (local 'jit-spell--filter-region)
+                    (jit-spell--refine-by-face jit-spell-prog-mode-faces t)))
+     ((derived-mode-p 'tex-mode)
+      (add-function :filter-return (local 'jit-spell--filter-region)
+                    (jit-spell--refine-by-face jit-spell-tex-ignored-faces))))
+    ;; Generic ignore predicate
     (when-let ((pred (or (bound-and-true-p flyspell-generic-check-word-predicate)
                          (get major-mode 'flyspell-mode-predicate))))
       (add-function :after-until (local 'jit-spell--ignored-p)
@@ -533,14 +572,18 @@ again moves to the next misspelling."
                                            (save-excursion
                                              (goto-char end)
                                              (not (funcall pred)))))))
+    ;; Hunspell workaround
     (when (if (eq 'auto jit-spell-use-apostrophe-hack)
               ispell-really-hunspell
             jit-spell-use-apostrophe-hack)
       (add-function :filter-return (local 'jit-spell--filter-region)
                     #'jit-spell--apostrophe-hack))
+    ;; Buffer setup
     (jit-spell--read-local-words)
     (add-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify nil t)
     (add-hook 'context-menu-functions 'jit-spell--context-menu nil t)
+    ;; Font-lock needs to run first
+    (add-hook 'jit-lock-functions #'jit-spell--check-region 10 t)
     (jit-lock-register #'jit-spell--check-region))
    (t
     (jit-lock-unregister #'jit-spell--check-region)
