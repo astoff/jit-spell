@@ -330,15 +330,14 @@ The process plist includes the following properties:
                  (jit-spell--make-overlays buffer start end misspellings))))
         (delete-region (point-min) (point-max))
         ;; Send next request to ispell process, if applicable
-        (let (request)
-          (while (and (setq request (pop (process-get proc 'jit-spell--requests)))
-                      (pcase-let ((`(,buffer ,tick) request))
-                        (not (and (buffer-live-p buffer)
-                                  (eq tick (buffer-chars-modified-tick buffer))))))
+        (catch 'jit-spell--done
+          (while-let ((request (pop (process-get proc 'jit-spell--requests)))
+                      (buffer (car request)))
             (when (buffer-live-p buffer)
-              (jit-spell--schedule-pending-checks (car request))))
-          (when request
-            (jit-spell--send-request proc request)))))))
+              (if (not (eq (cadr request) (buffer-chars-modified-tick buffer)))
+                  (jit-spell--schedule-pending-checks buffer)
+                (jit-spell--send-request proc request)
+                (throw 'jit-spell--done nil)))))))))
 
 (defun jit-spell--send-request (proc request)
   "Send REQUEST to ispell process PROC."
