@@ -152,8 +152,6 @@ move the point with impunity.")
                        face)
            (memq face jit-spell-prog-mode-faces)))))
 
-;; TODO: jit-spell--org-ignored-p, etc.
-
 ;;; Overlays
 
 (put 'jit-spell 'evaporate t)
@@ -181,7 +179,7 @@ character offset from START, and a list of corrections."
   (with-current-buffer buffer
     (with-silent-modifications
       (remove-list-of-text-properties start end '(jit-spell-pending))
-      (remove-overlays start end 'category 'jit-spell)
+      (jit-spell--remove-overlays start end)
       (pcase-dolist (`(,word ,offset ,corrections) misspellings)
         (let* ((wstart (+ start offset -1))
                (wend (+ wstart (length word))))
@@ -209,6 +207,19 @@ character offset from START, and a list of corrections."
             (cl-decf i)
             (unless (< 0 i)
               (throw 'jit-spell ov))))))))
+
+(defun jit-spell--remove-overlays (start end &optional gaps)
+  "Remove all `jit-spell' overlays between START and END, skipping GAPS.
+GAPS must be an ordered list of conses, with the intervals closer
+to END coming first."
+  (pcase-dolist (`(,i . ,j) gaps)
+    (dolist (ov (overlays-in j end))
+      (when (eq 'jit-spell (overlay-get ov 'category))
+        (delete-overlay ov))
+      (setq end i)))
+  (dolist (ov (overlays-in start end))
+    (when (eq 'jit-spell (overlay-get ov 'category))
+      (delete-overlay ov))))
 
 (defun jit-spell--apply-correction (ov text)
   "Replace region spanned by OV with TEXT."
@@ -255,7 +266,7 @@ Force refontification of the region, unless LAX is non-nil."
   (without-restriction
     (setq start (or start (point-min)))
     (setq end (or end (point-max)))
-    (remove-overlays start end 'category 'jit-spell)
+    (jit-spell--remove-overlays start end)
     (remove-list-of-text-properties start end '(jit-spell-pending))
     (unless lax (jit-lock-refontify start end))))
 
@@ -412,7 +423,8 @@ Otherwise, only such regions are kept."
              (goto-char i)
              (while-let ((prop (text-property-search-forward 'face faces pred)))
                (push `(,(prop-match-beginning prop) . ,(prop-match-end prop))
-                   result)))
+                     result)))
+           (jit-spell--remove-overlays i limit result)
            result))
        regions))))
 
