@@ -82,19 +82,22 @@
     font-lock-variable-name-face
     tex-math
     tex-verbatim)
-  "Faces jit-spell should ignore in TeX and derived modes."
+  "Faces jit-spell should ignore in TeX and derived modes.
+You can modify this variable buffer locally, say in a mode hook,
+but this must be done before activating `jit-spell-mode.'"
   :type '(repeat face))
 
 (defcustom jit-spell-prog-mode-faces
   '(font-lock-comment-face
     font-lock-doc-face
     font-lock-string-face)
-  "Faces jit-spell should check in modes derived from `prog-mode'."
+  "Faces jit-spell should check in modes derived from `prog-mode'.
+You can modify this variable buffer locally, say in a mode hook,
+but this must done before activating `jit-spell-mode.'"
   :type '(repeat face))
 
 (defcustom jit-spell-use-apostrophe-hack 'auto
   "Whether to work around Hunspell's issue parsing apostrophes.
-
 In some languages, Hunspell always considers the apostrophe
 character (a.k.a. straight quote) part of the word, which leads
 to false positives when it is used as a quotation mark."
