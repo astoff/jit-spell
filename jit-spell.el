@@ -105,14 +105,10 @@ to false positives when it is used as a quotation mark."
                  (const :tag "Yes" t)
                  (const :tag "No" nil)))
 
-(defvar jit-spell-delayed-commands nil)
-(make-obsolete-variable 'jit-spell-delayed-commands "Not necessary anymore" "0.2")
-
 (defvar jit-spell--ignored-p #'jit-spell--default-ignored-p
   "Predicate satisfied by words to ignore.
 It should be a function taking two arguments, the start and end
 positions of the word.")
-(make-obsolete-variable 'jit-spell-ignored-p 'jit-spell--ignored-p "0.2")
 
 (defvar jit-spell--filter-region #'jit-spell--filter-region
   "Function to extract regions of interest from the buffer.
@@ -496,7 +492,6 @@ the above)."
                (`(?b ,_) 'buffer)
                (`(?s ,_) 'session)))))
   (jit-lock-refontify))
-(define-obsolete-function-alias 'jit-spell-accept-word 'jit-spell--accept-word "0.2")
 
 (defun jit-spell-correct-word--next (arg)
   "Perform a spooky action at a distance."
