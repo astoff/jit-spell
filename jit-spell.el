@@ -42,8 +42,8 @@
 ;;     (define-key jit-spell-mode-map (kbd "C-;") 'jit-spell-correct-word))
 ;;
 ;; jit-spell relies on the `ispell' library to pick a spell checking
-;; program and dictionaries.  Try `M-x customize-group ispell' to see
-;; a listing of all possible settings.
+;; program and dictionaries.  Try `M-x customize-group RET ispell RET'
+;; to see a listing of all possible settings.
 
 ;;; Code:
 
