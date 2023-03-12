@@ -105,6 +105,14 @@ to false positives when it is used as a quotation mark."
                  (const :tag "Yes" t)
                  (const :tag "No" nil)))
 
+(defcustom jit-spell-correct-next-key 'auto
+  "Key used to jump to the next misspelling in `jit-spell-correct-word'.
+This can be a key sequence, nil, or `auto' to use the same key to
+which the command `jit-spell-correct-word' is bound."
+  :type '(choice (const :tag "Determine automatically" auto)
+                 (string :tag "Key")
+                 (const :tag "None" nil)))
+
 (defvar jit-spell--ignored-p #'jit-spell--default-ignored-p
   "Predicate satisfied by words to ignore.
 It should be a function taking two arguments, the start and end
@@ -501,49 +509,56 @@ the above)."
                (`(?s . ,_) 'session)))))
   (jit-lock-refontify))
 
-(defun jit-spell-correct-word--next (arg)
-  "Perform a spooky action at a distance."
-  (interactive "p")
-  (throw 'jit-spell-correct-word--next arg))
-
-(defun jit-spell-correct-word (arg &optional pos)
+(defun jit-spell-correct-word (arg)
   "Correct a misspelled word in the selected window.
 
 You can also accept the spelling in question by entering `@' in
-the prompt.  It is possible to modify the spelling to be
-accepted, say change capitalization or inflection, by entering
-any text after the `@'.
+the prompt.  To modify the spelling to be accepted, say change
+capitalization or inflection, enter any text after the `@'.
 
-With a numeric ARG, move backwards that many misspellings.
-Alternatively, pressing \\<jit-spell-mode-map>\\[jit-spell-correct-word] \
-again moves to the next misspelling."
+In the minibuffer, cycle between the visible misspellings.  There
+command is bound to `jit-spell-correct-next-key'.
+
+With a numeric ARG, move backwards that many misspellings."
   (interactive "p")
-  (let* ((ov (or (jit-spell--search-overlay (or pos (point)) (- arg))
-                 (user-error "No more misspellings")))
-         (start (overlay-start ov))
-         (end (overlay-end ov))
-         (word (buffer-substring-no-properties start end))
-         (highlight (make-overlay start end))
-         (map (make-sparse-keymap))
-         (prompt (format-prompt "Correct `%s' (`@' to accept)" nil word))
-         (coll (append (overlay-get ov 'jit-spell-corrections)
-                       (list (concat "@" word)))))
-    (dolist (key (where-is-internal 'jit-spell-correct-word))
-      (define-key map key 'jit-spell-correct-word--next))
-    (overlay-put highlight 'face 'highlight)
-    (pcase (catch 'jit-spell-correct-word--next
-             (minibuffer-with-setup-hook
-                 (lambda ()
-                   (set-keymap-parent map (current-local-map))
-                   (use-local-map map))
-               (unwind-protect
-                   (completing-read prompt coll nil nil nil nil nil t)
-                 (delete-overlay highlight))))
-      ((and count (pred numberp))
-       (jit-spell-correct-word count (overlay-start ov)))
-      ((and corr (rx bos ?@ (* space) (? (group (+ nonl)))))
-       (jit-spell--accept-word (or (match-string 1 corr) word) 'query))
-      (corr (jit-spell--apply-correction ov corr)))))
+  (if (minibufferp)
+      (throw 'jit-spell--next arg)
+    (named-let recur ((count (- arg)) (pos (point)))
+      (let* ((ov (or (jit-spell--search-overlay pos count)
+                     (user-error "No more misspellings")))
+             (start (overlay-start ov))
+             (end (overlay-end ov))
+             (word (buffer-substring-no-properties start end))
+             (highlight (make-overlay start end))
+             (key (if (eq jit-spell-correct-next-key 'auto)
+                      (where-is-internal 'jit-spell-correct-word nil t)
+                    jit-spell-correct-next-key))
+             (prompt (format-prompt "Correct `%s' (`@' to accept)" nil word))
+             (cands (append (overlay-get ov 'jit-spell-corrections)
+                            (list (concat "@" word))))
+             (metadata '(metadata (category . jit-spell)
+                                  (cycle-sort-function . identity)
+                                  (display-sort-function . identity)))
+             (coll (lambda (string pred action)
+                     (if (eq action 'metadata)
+                         metadata
+                       (complete-with-action action cands string pred)))))
+        (overlay-put highlight 'face 'highlight)
+        (pcase (catch 'jit-spell--next
+                 (minibuffer-with-setup-hook
+                     (lambda ()
+                       (when-let ((map (and key (make-sparse-keymap))))
+                         (set-keymap-parent map (current-local-map))
+                         (define-key map key 'jit-spell-correct-word)
+                         (use-local-map map)))
+                   (unwind-protect
+                       (completing-read prompt coll nil nil nil nil nil t)
+                     (delete-overlay highlight))))
+          ((and arg (pred numberp))
+           (recur (* (cl-signum count) arg) (overlay-start ov)))
+          ((and corr (rx bos ?@ (* space) (? (group (+ nonl)))))
+           (jit-spell--accept-word (or (match-string 1 corr) word) 'query))
+          (corr (jit-spell--apply-correction ov corr)))))))
 
 (defalias 'jit-spell-change-dictionary 'ispell-change-dictionary) ;For discoverability
 
@@ -613,15 +628,12 @@ again moves to the next misspelling."
     (jit-spell--unfontify nil nil t))))
 
 ;; Don't litter M-x
-(dolist (sym '(jit-spell--context-menu
-               jit-spell-correct-word--next))
-  (put sym 'completion-predicate #'ignore))
-
+(put 'jit-spell--context-menu 'completion-predicate #'ignore)
 (dolist (sym '(jit-spell-change-dictionary
                jit-spell-correct-word))
-  (put sym 'completion-predicate (lambda (_ buffer)
-                                   (buffer-local-value 'jit-spell-mode
-                                                       buffer))))
+  (put sym 'completion-predicate
+       (lambda (_ buffer)
+         (buffer-local-value 'jit-spell-mode buffer))))
 
 (provide 'jit-spell)
 
