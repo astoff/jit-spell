@@ -262,6 +262,14 @@ It can also be bound to a mouse click to pop up the menu."
 (defun jit-spell--unfontify (&optional start end lax)
   "Remove overlays and forget checking status from START to END (or whole buffer).
 Force refontification of the region, unless LAX is non-nil."
+  ;; Drop pending requests for this buffer
+  (dolist (proc (seq-filter #'processp jit-spell--process-pool))
+    (setf (process-get proc 'jit-spell--requests)
+          (seq-filter (lambda (r) (not (eq (car r) (current-buffer))))
+                      (process-get proc 'jit-spell--requests)))
+    (while (eq (car (process-get proc 'jit-spell--current-request))
+               (current-buffer))
+      (accept-process-output proc)))
   (without-restriction
     (setq start (or start (point-min)))
     (setq end (or end (point-max)))
