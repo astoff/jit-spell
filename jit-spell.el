@@ -491,14 +491,14 @@ the above)."
                                 (format "*%s\n#\n" word)))
     ('query (jit-spell--accept-word
              word
-             (pcase (read-multiple-choice (substitute-quotes
-                                           (format "Add `%s' to" word))
-                                          '((?d "dictionary")
-                                            (?b "buffer")
-                                            (?s "session"))) ;TODO: help string
-               (`(?d ,_) 'dict)
-               (`(?b ,_) 'buffer)
-               (`(?s ,_) 'session)))))
+             (pcase (read-multiple-choice
+                     (substitute-quotes (format "Add `%s' to" word))
+                     '((?d "dictionary" "Save this word in your personal dictionary.")
+                       (?b "buffer" "Add a local word at the end of this buffer.")
+                       (?s "session" "Accept this spelling temporarily and in this buffer only.")))
+               (`(?d . ,_) 'dict)
+               (`(?b . ,_) 'buffer)
+               (`(?s . ,_) 'session)))))
   (jit-lock-refontify))
 
 (defun jit-spell-correct-word--next (arg)
