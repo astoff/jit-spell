@@ -571,7 +571,7 @@ again moves to the next misspelling."
      ((derived-mode-p 'prog-mode)
       (add-function :filter-return (local 'jit-spell--filter-region)
                     (jit-spell--refine-by-face jit-spell-prog-mode-faces t)))
-     ((derived-mode-p 'tex-mode)
+     ((derived-mode-p 'tex-mode 'context-mode)
       (add-function :filter-return (local 'jit-spell--filter-region)
                     (jit-spell--refine-by-face jit-spell-tex-ignored-faces))))
     ;; Generic ignore predicate
