@@ -396,6 +396,7 @@ The process plist includes the following properties:
   "Enqueue spell check requests for all pending regions of BUFFER."
   (when (buffer-live-p buffer)
     (with-current-buffer buffer         ;TODO: Need to widen?
+      (setq jit-spell--recheck-timer nil)
       (let ((proc (jit-spell--get-process))
             (tick (buffer-chars-modified-tick))
             (end (point-min))
@@ -479,6 +480,32 @@ This is intended to be a member of `jit-lock-functions'."
               (push request (process-get proc 'jit-spell--requests))
             (jit-spell--send-request proc request)))))
     `(jit-lock-bounds ,start . ,end)))
+
+;;; Mode-line counter
+
+(defvar jit-spell-mode-line-counter-format
+  '(#("[%s]" 1 3 (face warning help-echo "Number of pending request"))
+    #("{%s}" 1 3 (face error help-echo "Number of pending requests, excluding stale ones"))))
+(defvar-local jit-spell--mode-line-count nil)
+(defun jit-spell-mode-line-count ()
+  (when-let ((proc (jit-spell--get-process)))
+    (unless (eq (cdr jit-spell--mode-line-count)
+                (process-get proc 'jit-spell--current-request))
+      (let* ((buffer (current-buffer))
+             (tick (buffer-chars-modified-tick))
+             (req (process-get proc 'jit-spell--current-request))
+             (count (named-let recur ((c 0)
+                                      (reqs `(,req ,@(process-get proc 'jit-spell--requests))))
+                      (cond
+                       ((eq buffer (nth 0 (car reqs)))
+                        (if (eq tick (nth 1 (car reqs))) (recur (1+ c) (cdr reqs)) c))
+                       (reqs (recur c (cdr reqs)))
+                       (t c)))))
+        (setq jit-spell--mode-line-count (cons count req))))
+    (format (if jit-spell--recheck-timer
+                (cadr jit-spell-mode-line-counter-format)
+              (car jit-spell-mode-line-counter-format))
+            (or (car jit-spell--mode-line-count) 0))))
 
 ;;; Interactive commands and major mode
 
@@ -577,12 +604,12 @@ With a numeric ARG, move backwards that many misspellings."
 (define-minor-mode jit-spell-mode
   "Just-in-time spell checking."
   :lighter (" Spell"
+            (:eval (jit-spell-mode-line-count))
             (:propertize
              (:eval
-	      (concat "/" (let ((s (or ispell-local-dictionary
-			               ispell-dictionary
-                                       "--")))
-                            (substring s 0 (string-search "_" s)))))
+	      (when-let ((s (or ispell-local-dictionary
+			        ispell-dictionary)))
+                (concat "/" (substring s 0 (string-search "_" s)))))
              help-echo "mouse-1: Change dictionary"
              local-map (keymap
                         (mode-line keymap
