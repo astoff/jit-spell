@@ -446,18 +446,14 @@ Otherwise, only such regions are kept."
 (defun jit-spell--apostrophe-hack (regions)
   "Refine REGIONS to work around Hunspell's apostrophe issue."
   (mapcan
-   (pcase-lambda (`(,i . ,limit)) ;; Refine one region
+   (pcase-lambda (`(,i . ,end)) ;; Refine one region
      (let (result)
        (goto-char i)
-       (while (re-search-forward
-               (rx (or (seq (or bol (not alpha)) (group ?') alpha)
-                       (seq alpha (group ?') (or (not alpha) eol))))
-               limit t)
-         (backward-char)
-         (let ((j (or (match-end 1) (match-beginning 2))))
-           (push (cons i j) result)
-           (setq i j)))
-       (push (cons i limit) result)))
+       (while (re-search-forward (rx (? (group alpha)) (group (+ ?'))) end t)
+         (unless (and (match-beginning 1) (looking-at-p (rx alpha)))
+           (push (cons i (match-beginning 2)) result)
+           (setq i (point))))
+       (push (cons i end) result)))
    regions))
 
 (defun jit-spell--check-region (start end)
