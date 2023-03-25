@@ -141,21 +141,19 @@ move the point with impunity.")
 ;;; Overlays
 
 (put 'jit-spell 'evaporate t)
+(put 'jit-spell 'face 'jit-spell-misspelling)
 
 (defun jit-spell--make-overlay (start end corrections)
   "Make an overlay to highlight incorrect word between START and END.
 Also add the list of CORRECTIONS as a property."
   (let ((ov (make-overlay start end nil t)))
-    (overlay-put ov 'category 'jit-spell)
     (overlay-put ov 'jit-spell-corrections corrections)
     (if (not (<= start (point) end))
-        (overlay-put ov 'face 'jit-spell-misspelling)
+        (overlay-put ov 'category 'jit-spell)
       (jit-spell--unhide-overlay)
       (setq jit-spell--hidden-overlay
-            `(,(run-with-timer jit-spell-current-word-delay nil
-                               #'jit-spell--unhide-overlay)
-              ,ov
-              jit-spell-misspelling)))
+            (cons ov (run-with-timer jit-spell-current-word-delay nil
+                                     #'jit-spell--unhide-overlay))))
     ov))
 
 (defun jit-spell--make-overlays (buffer start end misspellings)
@@ -196,14 +194,15 @@ character offset from START, and a list of corrections."
   "Remove all `jit-spell' overlays between START and END, skipping GAPS.
 GAPS must be an ordered list of conses, with the intervals closer
 to END coming first."
-  (pcase-dolist (`(,i . ,j) gaps)
-    (dolist (ov (overlays-in j end))
-      (when (eq 'jit-spell (overlay-get ov 'category))
+  (named-let recur ((i (or (cdar gaps) start))
+                    (j end)
+                    (gaps gaps))
+    (dolist (ov (overlays-in i j))
+      (when (or (eq (overlay-get ov 'category) 'jit-spell)
+                (eq ov (car jit-spell--hidden-overlay)))
         (delete-overlay ov)))
-    (setq end i))
-  (dolist (ov (overlays-in start end))
-    (when (eq 'jit-spell (overlay-get ov 'category))
-      (delete-overlay ov))))
+    (when gaps
+      (recur (or (cdadr gaps) start) (caar gaps) (cdr gaps)))))
 
 (defun jit-spell--apply-correction (ov text)
   "Replace region spanned by OV with TEXT."
@@ -214,11 +213,22 @@ to END coming first."
 
 (defun jit-spell--unhide-overlay ()
   "Unhide the overlay stored in `jit-spell--hidden-overlay'."
-  (pcase jit-spell--hidden-overlay
-    (`(,timer ,ov ,face)
-     (cancel-timer timer)
-     (overlay-put ov 'face face)
-     (setq jit-spell--hidden-overlay nil))))
+  (when jit-spell--hidden-overlay
+    (overlay-put (car jit-spell--hidden-overlay) 'category 'jit-spell)
+    (cancel-timer (cdr jit-spell--hidden-overlay))
+    (setq jit-spell--hidden-overlay nil)))
+
+(defun jit-spell--unhide-overlay-maybe ()
+  "Unhide `jit-spell--hidden-overlay' if it doesn't overlap with word at point."
+  (when-let ((ov (car jit-spell--hidden-overlay)))
+    (unless (and (eq (overlay-buffer ov) (current-buffer))
+                 (save-excursion
+                   (re-search-forward (rx (or blank eol)))
+                   (<= (overlay-start ov) (match-beginning 0)))
+                 (save-excursion
+                   (re-search-backward (rx (or blank bol)))
+                   (<= (match-end 0) (overlay-end ov))))
+      (jit-spell--unhide-overlay))))
 
 (defun jit-spell--unfontify (&optional start end lax)
   "Remove overlays and forget checking status from START to END (or whole buffer).
@@ -599,11 +609,13 @@ It can also be bound to a mouse click to pop up the menu."
     (jit-spell--read-local-words)
     (add-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify nil t)
     (add-hook 'context-menu-functions 'jit-spell--context-menu nil t)
+    (add-hook 'post-command-hook #'jit-spell--unhide-overlay-maybe nil t)
     ;; Font-lock needs to run first
     (add-hook 'jit-lock-functions #'jit-spell--check-region 10 t)
     (jit-lock-register #'jit-spell--check-region))
    (t
     (jit-lock-unregister #'jit-spell--check-region)
+    (remove-hook 'post-command-hook #'jit-spell--unhide-overlay-maybe t)
     (remove-hook 'context-menu-functions 'jit-spell--context-menu t)
     (remove-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify t)
     (kill-local-variable 'jit-spell--local-words)
