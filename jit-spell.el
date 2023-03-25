@@ -375,7 +375,7 @@ The process plist includes the following properties:
   "Return a list of subregions without control characters between START and END."
   (goto-char start)
   (let (regions)
-    (while (re-search-forward (rx (+ print)) end t)
+    (while (re-search-forward (rx (+ (not cntrl))) end t)
       (push (cons (match-beginning 0) (match-end 0)) regions))
     regions))
 
@@ -433,10 +433,12 @@ Otherwise, only such regions are kept."
 This is intended to be a member of `jit-lock-functions'."
   (save-excursion
     ;; Extend region to include whole words
-    (goto-char start)
-    (setq start (if (re-search-backward "\\s-" nil t) (match-end 0) (point-min)))
-    (goto-char end)
-    (setq end (or (re-search-forward "\\s-" nil t) (point-max)))
+    (setq start (progn (goto-char start)
+                       (re-search-backward (rx (or blank bol)))
+                       (match-end 0)))
+    (setq end (progn (goto-char end)
+                     (re-search-forward (rx (or blank eol)))
+                     (match-beginning 0)))
     (let ((proc (jit-spell--get-process))
           (buffer (current-buffer))
           (tick (buffer-chars-modified-tick)))
@@ -524,7 +526,7 @@ With a numeric ARG, move backwards that many misspellings."
                      (delete-overlay highlight))))
           ((and arg (pred numberp))
            (recur (* (cl-signum count) arg) (overlay-start ov)))
-          ((and corr (rx bos ?@ (* space) (? (group (+ nonl)))))
+          ((and corr (rx bos ?@ (* ?\s) (? (group (+ nonl)))))
            (jit-spell--accept-word (or (match-string 1 corr) word) 'query))
           (corr (jit-spell--apply-correction ov corr)))))))
 
