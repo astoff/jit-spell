@@ -180,19 +180,17 @@ character offset from START, and a list of corrections."
 
 (defun jit-spell--search-overlay (pos count)
   "Return the COUNT jit-spell overlay from POS."
-  (let* ((limit (if (> count 0) (window-end) (window-start)))
-         (searchfn (if (> count 0)
+  (let* ((limit (if (cl-plusp count) (window-end) (window-start)))
+         (searchfn (if (cl-plusp count)
                        #'next-single-char-property-change
                      #'previous-single-char-property-change))
          (i (abs count)))
     (catch 'jit-spell
       (while (/= pos limit)
         (setq pos (funcall searchfn pos 'category nil limit))
-        (dolist (ov (overlays-at pos))
-          (when (eq (overlay-get ov 'category) 'jit-spell)
-            (cl-decf i)
-            (unless (< 0 i)
-              (throw 'jit-spell ov))))))))
+        (when-let ((ov (jit-spell--overlay-at pos)))
+          (unless (cl-plusp (cl-decf i))
+            (throw 'jit-spell ov)))))))
 
 (defun jit-spell--remove-overlays (start end &optional gaps)
   "Remove all `jit-spell' overlays between START and END, skipping GAPS.
@@ -397,14 +395,14 @@ Otherwise, only such regions are kept."
                 (lambda (faces v) (not (jit-spell--has-face-p faces v))))))
     (lambda (regions)
       (mapcan
-       (pcase-lambda (`(,i . ,limit)) ;; Refine one region
+       (pcase-lambda (`(,start . ,end)) ;; Refine one region
          (let (result)
-           (with-restriction i limit
-             (goto-char i)
+           (with-restriction start end
+             (goto-char start)
              (while-let ((prop (text-property-search-forward 'face faces pred)))
                (push `(,(prop-match-beginning prop) . ,(prop-match-end prop))
                      result)))
-           (jit-spell--remove-overlays i limit result)
+           (jit-spell--remove-overlays start end result)
            result))
        regions))))
 
