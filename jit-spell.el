@@ -234,7 +234,7 @@ to END coming first."
   "Remove overlays and forget checking status from START to END (or whole buffer).
 Force refontification of the region, unless LAX is non-nil."
   ;; Drop pending requests for this buffer
-  (dolist (proc (seq-filter #'processp jit-spell--process-pool))
+  (pcase-dolist (`(,_ . ,proc) jit-spell--process-pool)
     (setf (process-get proc 'jit-spell--requests)
           (seq-filter (lambda (r) (not (eq (car r) (current-buffer))))
                       (process-get proc 'jit-spell--requests)))
@@ -272,7 +272,7 @@ The process plist includes the following properties:
 `jit-spell--requests': a FIFO queue with elements in the same
   form as above."
   (let* ((params (jit-spell--process-parameters))
-         (proc (plist-get jit-spell--process-pool params #'equal)))
+         (proc (cdr (assoc params jit-spell--process-pool))))
     (if (process-live-p proc)
         proc
       (unless ispell-async-processp
@@ -281,8 +281,7 @@ The process plist includes the following properties:
       (ispell-internal-change-dictionary)
       (setq proc (ispell-start-process))
       (set-process-query-on-exit-flag proc nil)
-      (setq jit-spell--process-pool
-            (plist-put jit-spell--process-pool params proc #'equal))
+      (setf (alist-get params jit-spell--process-pool nil nil #'equal) proc)
       (set-process-filter proc #'jit-spell--process-filter)
       (set-process-buffer proc (generate-new-buffer " *jit-spell*"))
       (process-send-string proc "!\n")  ;Enter terse mode
