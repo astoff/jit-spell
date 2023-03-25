@@ -50,6 +50,7 @@
 (require 'cl-lib)
 (require 'compat)
 (require 'ispell)
+(require 'text-property-search)
 
 (defgroup jit-spell nil
   "Check spelling as you type."
