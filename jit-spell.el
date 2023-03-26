@@ -575,14 +575,9 @@ It can also be bound to a mouse click to pop up the menu."
   :lighter (" Spell"
             (:propertize
              (:eval
-	      (concat "/" (let ((s (or ispell-local-dictionary
-			               ispell-dictionary
-                                       "--")))
-                            (substring s 0 (string-search "_" s)))))
-             help-echo "mouse-1: Change dictionary"
-             local-map (keymap
-                        (mode-line keymap
-                                   (mouse-1 . ispell-change-dictionary)))))
+              (when-let ((s (or ispell-local-dictionary
+			        ispell-dictionary)))
+                (concat "/" (substring s 0 (string-search "_" s)))))))
   (cond
    (jit-spell-mode
     ;; Major mode support
