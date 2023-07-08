@@ -566,11 +566,11 @@ Interactively offer the current word or sub-words."
             (mapc (pcase-lambda (`(,buf _ _ _))
                     (with-current-buffer buf (jit-lock-refontify)))
                   pending)))))
-    (message "\"%s\" removed from %s." word (string-join places " and "))
     (if (not places)
         (message
          "\"%s\" not found in the personal dictionary or local word lists."
          word)
+      (message "\"%s\" removed from %s." word (string-join places " and "))
       (jit-lock-refontify))))
 
 (defalias 'jit-spell-change-dictionary 'ispell-change-dictionary) ;For discoverability
