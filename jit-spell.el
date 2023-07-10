@@ -531,7 +531,11 @@ With a numeric ARG, move backwards that many misspellings."
 
 (defun jit-spell-remove-word (word)
   "Remove the WORD from personal dictionary or local word lists.
-Interactively offer the current word or sub-words."
+Interactively offer the current word or sub-words.
+
+To remove words from the personal dictionary `ispell-personal-dictionary'
+must be set.  The location of personal dictionary depends on the spell checking
+program and there is no reliable way of obtaining it."
   (interactive (list (let ((cand (current-word)))
                        (completing-read
                         "Remove word: "
@@ -553,19 +557,21 @@ Interactively offer the current word or sub-words."
       (unless places (push "the session's word list" places)))
     ;; Remove it from the personal dictionary
     (let ((case-fold-search nil))
-      (with-temp-buffer
-        (insert-file-contents ispell-personal-dictionary nil nil nil t)
-        (when (re-search-forward (rx bol (literal word)) nil t)
-          (delete-line)
-          (let ((inhibit-message t))
-            (write-file ispell-personal-dictionary))
-          (push "the personal dictionary" places)
-          (let* ((proc (jit-spell--get-process))
-                 (pending (process-get proc 'jit-spell--requests)))
-            (kill-process proc)
-            (mapc (pcase-lambda (`(,buf _ _ _))
-                    (with-current-buffer buf (jit-lock-refontify)))
-                  pending)))))
+      (when (and ispell-personal-dictionary
+                 (file-exists-p ispell-personal-dictionary))
+        (with-temp-buffer
+          (insert-file-contents ispell-personal-dictionary nil nil nil t)
+          (when (re-search-forward (rx bol (literal word)) nil t)
+            (delete-line)
+            (let ((inhibit-message t))
+              (write-file ispell-personal-dictionary))
+            (push "the personal dictionary" places)
+            (let* ((proc (jit-spell--get-process))
+                   (pending (process-get proc 'jit-spell--requests)))
+              (kill-process proc)
+              (mapc (pcase-lambda (`(,buf _ _ _))
+                      (with-current-buffer buf (jit-lock-refontify)))
+                    pending))))))
     (if (not places)
         (message
          "\"%s\" not found in the personal dictionary or local word lists."
