@@ -529,6 +529,56 @@ With a numeric ARG, move backwards that many misspellings."
            (jit-spell--accept-word (or (match-string 1 corr) word) 'query))
           (corr (jit-spell--apply-correction ov corr)))))))
 
+(defun jit-spell-remove-word (word)
+  "Remove the WORD from personal dictionary or local word lists.
+Interactively offer the current word or sub-words.
+
+To remove words from the personal dictionary `ispell-personal-dictionary'
+must be set.  The location of personal dictionary depends on the spell checking
+program and there is no reliable way of obtaining it."
+  (interactive (list (let ((cand (current-word)))
+                       (completing-read
+                        "Remove word: "
+                        (append `(,cand) (string-split cand (rx (not alpha))))
+                        nil nil nil nil cand))))
+  (let ((places nil))
+    ;; Check among the local words.
+    (save-excursion
+      (goto-char (point-min))
+      (when (re-search-forward (rx bol (syntax comment-start) (*? nonl)
+                                   (literal ispell-words-keyword) (*? nonl)
+                                   (group-n 1 (and " " (literal word))))
+                               nil t)
+        (push "the buffer's word list" places)
+        (delete-region (match-beginning 1) (match-end 1))))
+    ;; Remove it from the local word list.
+    (when (member word jit-spell--local-words)
+      (cl-callf2 delete word jit-spell--local-words)
+      (unless places (push "the session's word list" places)))
+    ;; Remove it from the personal dictionary
+    (let ((case-fold-search nil))
+      (when (and ispell-personal-dictionary
+                 (file-exists-p ispell-personal-dictionary))
+        (with-temp-buffer
+          (insert-file-contents ispell-personal-dictionary nil nil nil t)
+          (when (re-search-forward (rx bol (literal word)) nil t)
+            (delete-line)
+            (let ((inhibit-message t))
+              (write-file ispell-personal-dictionary))
+            (push "the personal dictionary" places)
+            (let* ((proc (jit-spell--get-process))
+                   (pending (process-get proc 'jit-spell--requests)))
+              (kill-process proc)
+              (mapc (pcase-lambda (`(,buf _ _ _))
+                      (with-current-buffer buf (jit-lock-refontify)))
+                    pending))))))
+    (if (not places)
+        (message
+         "\"%s\" not found in the personal dictionary or local word lists."
+         word)
+      (message "\"%s\" removed from %s." word (string-join places " and "))
+      (jit-lock-refontify))))
+
 (defalias 'jit-spell-change-dictionary 'ispell-change-dictionary) ;For discoverability
 
 ;;; Minor mode definition
