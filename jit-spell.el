@@ -632,7 +632,7 @@ It can also be bound to a mouse click to pop up the menu."
      ((derived-mode-p 'prog-mode)
       (add-function :filter-return (local 'jit-spell--filter-region)
                     (jit-spell--refine-by-face jit-spell-prog-mode-faces t)))
-     ((derived-mode-p 'tex-mode 'context-mode)
+     ((derived-mode-p 'tex-mode 'TeX-mode 'context-mode)
       (add-function :filter-return (local 'jit-spell--filter-region)
                     (jit-spell--refine-by-face jit-spell-tex-ignored-faces))))
     ;; Generic ignore predicate
