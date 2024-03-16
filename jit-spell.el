@@ -187,9 +187,10 @@ character offset from START, and a list of corrections."
     (catch 'jit-spell
       (while (/= pos limit)
         (setq pos (funcall searchfn pos 'category nil limit))
-        (when-let ((ov (jit-spell--overlay-at pos)))
-          (unless (cl-plusp (cl-decf i))
-            (throw 'jit-spell ov)))))))
+        (unless (invisible-p pos)
+          (when-let ((ov (jit-spell--overlay-at pos)))
+            (unless (cl-plusp (cl-decf i))
+              (throw 'jit-spell ov))))))))
 
 (defun jit-spell--remove-overlays (start end &optional gaps)
   "Remove all `jit-spell' overlays between START and END, skipping GAPS.
