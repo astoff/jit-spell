@@ -1,12 +1,12 @@
 ;;; jit-spell.el --- Just-in-time spell checking      -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2023  Free Software Foundation, Inc.
+;; Copyright (C) 2023-2024  Free Software Foundation, Inc.
 
 ;; Author: Augusto Stoffel <arstoffel@gmail.com>
 ;; Keywords: tools, wp
 ;; URL: https://github.com/astoff/jit-spell
 ;; Package-Requires: ((emacs "27.1") (compat "29.1"))
-;; Version: 0.3
+;; Version: 0.4
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
