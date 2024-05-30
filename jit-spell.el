@@ -162,14 +162,15 @@ Also add the list of CORRECTIONS as a property."
 MISSPELLINGS is a list with elements consisting of a word, a
 character offset from START, and a list of corrections."
   (with-current-buffer buffer
-    (with-silent-modifications
-      (remove-list-of-text-properties start end '(jit-spell-pending))
-      (jit-spell--remove-overlays start end)
-      (pcase-dolist (`(,word ,offset ,corrections) misspellings)
-        (let* ((wstart (+ start offset -1))
-               (wend (+ wstart (length word))))
-          (unless (funcall jit-spell--ignored-p wstart wend)
-            (jit-spell--make-overlay wstart wend corrections)))))))
+    (without-restriction
+      (with-silent-modifications
+        (remove-list-of-text-properties start end '(jit-spell-pending))
+        (jit-spell--remove-overlays start end)
+        (pcase-dolist (`(,word ,offset ,corrections) misspellings)
+          (let* ((wstart (+ start offset -1))
+                 (wend (+ wstart (length word))))
+            (unless (funcall jit-spell--ignored-p wstart wend)
+              (jit-spell--make-overlay wstart wend corrections))))))))
 
 (defun jit-spell--overlay-at (pos)
   "Return the jit-spell overlay at POS, if it exists."
