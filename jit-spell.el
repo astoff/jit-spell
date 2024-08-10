@@ -281,6 +281,8 @@ The process plist includes the following properties:
       (unless ispell-async-processp
         (error "`jit-spell-mode' requires `ispell-async-processp'"))
       (ispell-set-spellchecker-params)
+      (when-let ((dict (and ispell-really-hunspell (cadr params))))
+        (ispell-hunspell-add-multi-dic dict))
       (ispell-internal-change-dictionary)
       (setq proc (ispell-start-process))
       (set-process-query-on-exit-flag proc nil)
@@ -585,7 +587,24 @@ program and there is no reliable way of obtaining it."
       (message "\"%s\" removed from %s." word (string-join places " and "))
       (jit-lock-refontify))))
 
-(defalias 'jit-spell-change-dictionary 'ispell-change-dictionary) ;For discoverability
+(defun jit-spell-change-dictionary (dict &optional arg)
+  "Change to dictionary DICT for Ispell.
+If ARG (interactively, the prefix argument) is non-nil, change globally;
+otherwise change for this buffer only.
+
+This command is like `ispell-change-dictionary', but allows DICT to be a
+comma-separated list of dictionaries when using Hunspell."
+  (interactive
+   (list (let ((cands (ispell-valid-dictionary-list)))
+           (if ispell-really-hunspell
+               (string-join
+                (completing-read-multiple "Use dictionaries: " cands nil t)
+                ",")
+             (completing-read "Use dictionary: " cands nil t)))
+	 current-prefix-arg))
+  (when (and ispell-really-hunspell (not (string-empty-p dict)))
+    (ispell-hunspell-add-multi-dic dict))
+  (ispell-change-dictionary dict arg))
 
 ;;; Minor mode definition
 
@@ -630,7 +649,7 @@ It can also be bound to a mouse click to pop up the menu."
             (:propertize
              (:eval
               (let ((s (or ispell-local-dictionary ispell-dictionary)))
-                (if s (concat "/" (substring s 0 (string-search "_" s))))))))
+                (and s (concat "/" s))))))
   (cond
    (jit-spell-mode
     ;; Major mode support
