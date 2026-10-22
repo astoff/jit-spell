@@ -682,7 +682,7 @@ In the minibuffer, cycle between the visible misspellings.  There
 command is bound to `jit-spell-correct-next-key'.
 
 With a numeric ARG, move backwards that many misspellings."
-  (interactive "p")
+  (interactive "p" jit-spell-mode)
   (if (minibufferp)
       (throw 'jit-spell--next arg)
     (named-let recur ((count (- arg))
@@ -770,7 +770,8 @@ globally; otherwise change for this buffer only."
    (list (completing-read-multiple "Use dictionaries: "
                                    (jit-spell--list-dictionaries)
                                     nil t)
-	 current-prefix-arg))
+	 current-prefix-arg)
+   jit-spell-mode)
   (jit-spell--unfontify)
   (setq-local jit-spell-dictionary (ensure-list dicts)))
 
@@ -783,7 +784,7 @@ globally; otherwise change for this buffer only."
   "Context menu for `jit-spell-mode'.
 MENU and CLICK are as expected of a member of `context-menu-functions'.
 It can also be bound to a mouse click to pop up the menu."
-  (interactive "i\ne")
+  (interactive "i\ne" ignore)
   (save-excursion
     (mouse-set-point click)
     (when-let* ((ov (jit-spell--overlay-at (point)))
@@ -864,14 +865,6 @@ It can also be bound to a mouse click to pop up the menu."
     (kill-local-variable 'jit-spell--filter-region)
     (kill-local-variable 'jit-spell--ignored-p)
     (jit-spell--unfontify nil nil t))))
-
-;; Don't litter M-x
-(put 'jit-spell--context-menu 'completion-predicate #'ignore)
-(dolist (sym '(jit-spell-dictionary
-               jit-spell-correct-word))
-  (put sym 'completion-predicate
-       (lambda (_ buffer)
-         (buffer-local-value 'jit-spell-mode buffer))))
 
 (provide 'jit-spell)
 
