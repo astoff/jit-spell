@@ -122,6 +122,12 @@ Can be either `vibe-spell', which is recommended but is an external
 package, or `ispell', which is built-in."
   :type '(choice (const vibe-spell) (const ispell)))
 
+(defcustom jit-spell-dictionary nil
+  "One or more dictionaries used for spellchecking.
+Can be a string or list of strings."
+  :type '(choice string (repeat string))
+  :safe (lambda (v) (or (stringp v) (all #'stringp v))))
+
 (defvar jit-spell--ignored-p #'jit-spell--default-ignored-p
   "Predicate satisfied by words to ignore.
 It should be a function taking one argument, the word starting position.
@@ -298,6 +304,16 @@ Force refontification of the region, unless LAX is non-nil."
     (remove-list-of-text-properties start end '(jit-spell-pending))
     (unless lax (jit-lock-refontify start end))))
 
+(defun jit-spell--dicts ()
+  "Get a list of dictionaries for the current buffer."
+  (or (ensure-list jit-spell-dictionary)
+      (when-let* ((s (or ispell-local-dictionary ispell-dictionary)))
+        (split-string s "," t))
+      (when (bound-and-true-p current-locale-environment) ;Emacs 29
+                 (list (replace-regexp-in-string
+                        "\\..*" "" current-locale-environment)))
+      (user-error "Unable to guess a dictionary, please set `jit-spell-dictionary'")))
+
 ;;; vibe-spell interface implementation
 
 (declare-function vibe-spell-add-word "ext:vibe-spell")
@@ -323,14 +339,7 @@ Force refontification of the region, unless LAX is non-nil."
             (with-memoization (alist-get name jit-spell--vspell-dicts
                                          nil nil #'string=)
               (vibe-spell-create name)))
-          (split-string
-           (or ispell-local-dictionary
-               ispell-dictionary
-               (when (bound-and-true-p current-locale-environment) ;Emacs 29
-                 (replace-regexp-in-string
-                  "\\..*" "" current-locale-environment))
-               "en_US")
-           "," t)))
+          (jit-spell--dicts)))
 
 (defun jit-spell--vspell-check (request)
   "Perform the actual checking of a given region.
@@ -392,16 +401,9 @@ REQUEST a list once passed to jit-spell--schedule`."
 
 (cl-defmethod jit-spell--list-dictionaries
     (&context (jit-spell-engine (eql vibe-spell)))
-  (cons t (vibe-spell-list-dictionaries)))
+  (vibe-spell-list-dictionaries))
 
 ;;; ispell pipe interface implementation
-
-(defun jit-spell--ispell-parameters ()
-  "Return a list of parameters for this buffer's ispell process."
-  (list ispell-program-name
-        (or ispell-local-dictionary ispell-dictionary)
-        (or ispell-local-pdict ispell-personal-dictionary)
-        ispell-extra-args))
 
 (defvar jit-spell--ispell-process nil
   "Memoization place for function `jit-spell--ispell-process'.")
@@ -414,23 +416,29 @@ results share their ispell process.
 The process plist includes `jit-spell--current-request', the REQUEST
 currently being processed, and `jit-spell--requests', a LIFO queue of
 upcoming requests."
-  (let* ((params (jit-spell--ispell-parameters))
+  (require 'ispell)
+  (let* ((params (list ispell-program-name
+                       (jit-spell--dicts)
+                       (or ispell-local-pdict ispell-personal-dictionary)
+                       ispell-extra-args))
          (proc (cdr (assoc params jit-spell--ispell-process))))
     (if (process-live-p proc)
         proc
-      (unless ispell-async-processp
-        (error "`jit-spell-mode' requires `ispell-async-processp'"))
-      (ispell-set-spellchecker-params)
-      (when-let* ((dict (and ispell-really-hunspell (cadr params))))
-        (ispell-hunspell-add-multi-dic dict))
-      (ispell-internal-change-dictionary)
-      (setq proc (ispell-start-process))
-      (set-process-query-on-exit-flag proc nil)
-      (setf (alist-get params jit-spell--ispell-process nil nil #'equal) proc)
-      (set-process-filter proc #'jit-spell--ispell-filter)
-      (set-process-buffer proc (generate-new-buffer " *jit-spell*"))
-      (process-send-string proc "!\n")  ;Enter terse mode
-      proc)))
+      (let* ((dicts (string-join (cadr params) ","))
+             (name (format "jit-spell-%s" dicts))
+             (proc (make-process
+                    :name name
+                    :buffer (generate-new-buffer (format " *%s*" name))
+                    :command `(,ispell-program-name
+                               "-a" "-d" ,dicts
+                               ,@(when (caddr params) `("-p" ,(caddr params)))
+                               ,@ispell-extra-args)
+                    :filter #'jit-spell--ispell-filter
+                    :connection-type 'pipe
+                    :noquery t)))
+        (setf (alist-get params jit-spell--ispell-process nil nil #'equal) proc)
+        (process-send-string proc "!\n")  ;Enter terse mode
+        proc))))
 
 (defun jit-spell--ispell-filter (proc string)
   "Filter function for ispell processes."
@@ -512,6 +520,12 @@ move the point with impunity.")
                (requests (mapcar (pcase-lambda (`(,s . ,e))
                                    `(,buffer ,tick ,s ,e))
                                  regions)))
+    ;; Hunspell workaround
+    (when (if (eq 'auto jit-spell-use-apostrophe-hack)
+              (string-search "hunspell" (car (process-command proc)))
+            jit-spell-use-apostrophe-hack)
+      (save-excursion
+        (setq regions (jit-spell--apostrophe-hack regions))))
     ;; Remove pending property from the regions left out.
     (pcase-dolist (`(,s . ,e) regions)
       (remove-list-of-text-properties start s '(jit-spell-pending))
@@ -558,9 +572,7 @@ move the point with impunity.")
 
 (cl-defmethod jit-spell--list-dictionaries
     (&context (jit-spell-engine (eql ispell)))
-  (let ((dicts (ispell-valid-dictionary-list)))
-    ;; `ispell-really-...' is set by side-effect.
-    (cons (and ispell-really-hunspell t) dicts)))
+  (ispell-valid-dictionary-list))
 
 ;;;; Region filtering
 
@@ -750,21 +762,20 @@ program and there is no reliable way of obtaining it."
       ;; FIXME: We might need to refontify other buffers as well.
       (jit-lock-refontify))))
 
-(defun jit-spell-change-dictionary (dict &optional global)
-  "Change to dictionary DICT for Ispell.
+(defun jit-spell-dictionary (dicts &optional _global)
+  "Set jit-spell dictionaries to DICTS.
 If GLOBAL (interactively, the prefix argument) is non-nil, change
 globally; otherwise change for this buffer only."
   (interactive
-   (list (let ((cands (jit-spell--list-dictionaries)))
-           (if (pop cands)
-               (string-join
-                (completing-read-multiple "Use dictionaries: " cands nil t)
-                ",")
-             (completing-read "Use dictionary: " cands nil t)))
+   (list (completing-read-multiple "Use dictionaries: "
+                                   (jit-spell--list-dictionaries)
+                                    nil t)
 	 current-prefix-arg))
-  (when (and ispell-really-hunspell (not (string-empty-p dict)))
-    (ispell-hunspell-add-multi-dic dict))
-  (ispell-change-dictionary dict global))
+  (jit-spell--unfontify)
+  (setq-local jit-spell-dictionary (ensure-list dicts)))
+
+(define-obsolete-function-alias
+  'jit-spell-change-dictionary 'jit-spell-dictionary "0.6")
 
 ;;; Minor mode definition
 
@@ -802,12 +813,12 @@ It can also be bound to a mouse click to pop up the menu."
           (jit-spell--accept-word (match-string-no-properties 1) 'session))))))
 
 (defvar-keymap jit-spell--dict-modeline-map
-  "<mode-line> <mouse-1>" #'jit-spell-change-dictionary)
+  "<mode-line> <mouse-1>" #'jit-spell-dictionary)
 
 (defun jit-spell--dict-modeline ()
-  (when-let* ((dict (or ispell-local-dictionary ispell-dictionary)))
+  (when-let* ((dicts (jit-spell--dicts)))
     `((:propertize "/")
-      (:propertize ,dict
+      (:propertize ,(string-join dicts ",")
                    keymap ,jit-spell--dict-modeline-map
                    help-echo "Change dictionary"
 		   mouse-face mode-line-highlight))))
@@ -838,15 +849,8 @@ It can also be bound to a mouse click to pop up the menu."
                           (get major-mode 'flyspell-mode-predicate))))
       (add-function :after-until (local 'jit-spell--ignored-p)
                     (lambda (_start) (not (funcall pred)))))
-    ;; Hunspell workaround
-    (when (if (eq 'auto jit-spell-use-apostrophe-hack)
-              ispell-really-hunspell
-            jit-spell-use-apostrophe-hack)
-      (add-function :filter-return (local 'jit-spell--filter-region)
-                    #'jit-spell--apostrophe-hack))
     ;; Buffer setup
     (jit-spell--read-local-words)
-    (add-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify nil t)
     (add-hook 'context-menu-functions 'jit-spell--context-menu nil t)
     (add-hook 'post-command-hook #'jit-spell--unhide-overlay-maybe nil t)
     ;; Font-lock needs to run first
@@ -856,7 +860,6 @@ It can also be bound to a mouse click to pop up the menu."
     (jit-lock-unregister #'jit-spell--check-region)
     (remove-hook 'post-command-hook #'jit-spell--unhide-overlay-maybe t)
     (remove-hook 'context-menu-functions 'jit-spell--context-menu t)
-    (remove-hook 'ispell-change-dictionary-hook 'jit-spell--unfontify t)
     (kill-local-variable 'jit-spell--local-words)
     (kill-local-variable 'jit-spell--filter-region)
     (kill-local-variable 'jit-spell--ignored-p)
@@ -864,7 +867,7 @@ It can also be bound to a mouse click to pop up the menu."
 
 ;; Don't litter M-x
 (put 'jit-spell--context-menu 'completion-predicate #'ignore)
-(dolist (sym '(jit-spell-change-dictionary
+(dolist (sym '(jit-spell-dictionary
                jit-spell-correct-word))
   (put sym 'completion-predicate
        (lambda (_ buffer)
