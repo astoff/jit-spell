@@ -144,6 +144,9 @@ point.")
 (defvar-local jit-spell--local-words nil
   "A list of words accepted temporarily in this buffer.")
 
+;; For the byte-compiler
+(defvar jit-spell-mode)
+
 ;;; Overlays
 
 (put 'jit-spell 'evaporate t)
@@ -650,25 +653,24 @@ See `jit-spell--ignored-p' for the usage conventions."
 
 (defun jit-spell--accept-word (word where)
   "Accept spelling of WORD.
-WHERE can be `dict' (save in personal dictionary), `buffer' (save
-as a local word at the end of the buffer), `session' (accept
-temporarily and in this buffer only), or `query' (ask for one of
-the above)."
+WHERE can be `dictionary' (save in personal dictionary), `buffer' (save
+as a local word at the end of the buffer), `session' (accept temporarily
+and in this buffer only), or `query' (ask for one of the above)."
   (pcase-exhaustive where
     ('session (cl-pushnew word jit-spell--local-words :test #'equal))
     ('buffer (ispell-add-per-file-word-list word)
              (jit-spell--accept-word word 'session))
-    ('dict (jit-spell--save-word word))
+    ('dictionary (jit-spell--save-word word))
     ('query (jit-spell--accept-word
              word
-             (pcase (read-multiple-choice
-                     (substitute-quotes (format "Add `%s' to" word))
-                     '((?d "dictionary" "Save this word in your personal dictionary.")
-                       (?b "buffer" "Add a local word at the end of this buffer.")
-                       (?s "session" "Accept this spelling temporarily and in this buffer only.")))
-               (`(?d . ,_) 'dict)
-               (`(?b . ,_) 'buffer)
-               (`(?s . ,_) 'session)))))
+             (intern (cadr (read-multiple-choice
+                            (substitute-quotes (format "Add `%s' to" word))
+                            '((?s "session" "\
+Accept this spelling temporarily and in this buffer only.")
+                              (?b "buffer" "\
+Add a local word at the end of this buffer.")
+                              (?d "dictionary" "\
+Save this word in your personal dictionary."))))))))
   (jit-lock-refontify))
 
 (defun jit-spell-correct-word (arg)
@@ -762,18 +764,47 @@ program and there is no reliable way of obtaining it."
       ;; FIXME: We might need to refontify other buffers as well.
       (jit-lock-refontify))))
 
-(defun jit-spell-dictionary (dicts &optional _global)
-  "Set jit-spell dictionaries to DICTS.
-If GLOBAL (interactively, the prefix argument) is non-nil, change
-globally; otherwise change for this buffer only."
+(defun jit-spell-dictionary (dicts &optional where)
+  "Set the jit-spell dictionaries in the current buffer to DICTS.
+If WHERE is one of `file' or `directory', save the choice as a file-
+respectively dir-local variable.
+
+Interactively, use a prefix argument to ask WHERE."
   (interactive
-   (list (completing-read-multiple "Use dictionaries: "
+   (reverse
+    (list
+     (when current-prefix-arg
+       (intern (cadr (read-multiple-choice
+                      "Set dictionaries"
+                      '((?s "session" "\
+Temporarily and in this buffer only.")
+                        (?b "buffer" "\
+Permanently as a file-local variable.")
+                        (?d "directory" "\
+Permanently as a directory-local variable."))))))
+     (completing-read-multiple "Use dictionaries: "
                                    (jit-spell--list-dictionaries)
-                                    nil t)
-	 current-prefix-arg)
+                                    nil t)))
    jit-spell-mode)
-  (jit-spell--unfontify)
-  (setq-local jit-spell-dictionary (ensure-list dicts)))
+  (let ((doit (lambda ()
+                (jit-spell--unfontify)
+                (setq-local jit-spell-dictionary dicts))))
+    (pcase where
+      ((or 'nil 'session) (funcall doit))
+      ('buffer
+       (save-excursion
+         (add-file-local-variable 'jit-spell-dictionary dicts))
+       (funcall doit))
+      ('directory
+       (add-dir-local-variable nil 'jit-spell-dictionary dicts)
+       ;; The dir-locals buffer is now current...
+       (let ((dir (file-name-directory buffer-file-name)))
+         (dolist (buffer (buffer-list))
+           (with-current-buffer buffer
+             (and jit-spell-mode
+                  buffer-file-name
+                  (file-in-directory-p buffer-file-name dir)
+                  (funcall doit)))))))))
 
 (define-obsolete-function-alias
   'jit-spell-change-dictionary 'jit-spell-dictionary "0.6")
@@ -796,7 +827,7 @@ It can also be bound to a mouse click to pop up the menu."
                             (vector sug (lambda () (interactive)
                                           (jit-spell--apply-correction ov sug)))))
       (easy-menu-add-item map nil `["Save to Dictionary"
-                                    (jit-spell--accept-word ,word 'dict)])
+                                    (jit-spell--accept-word ,word 'dictionary)])
       (easy-menu-add-item map nil `["Save to Buffer"
                                     (jit-spell--accept-word ,word 'buffer)])
       (easy-menu-add-item map nil `["Accept for Session"

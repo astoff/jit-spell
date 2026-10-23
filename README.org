@@ -46,24 +46,15 @@ has better correction suggestions and is sufficiently performant.
 
 ** Language selection
 
-Type =M-x jit-spell-change-dictionary RET= to choose a different
-spelling language.  If you use Hunspell, you will be able to select
-multiple languages.  Other spellchecking programs are limited to a
-single language.
+Type =M-x jit-spell-dictionary RET= to choose a different spelling
+language (or languages).  You also call that command with a prefix
+argument in order to save the dictionary choice permanently, either as
+a [[https://www.gnu.org/software/emacs/manual/html_node/elisp/File-Local-Variables.html][file-local variable]] or [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Directory-Local-Variables.html][dir-local variable]].
 
-The default spellchecking language is determined from your system
-settings.  To change that, customize the variable =ispell-dictionary=.
-To change the spellchecking language of a specific file, type =M-x
-add-file-local-variable RET ispell-local-dictionary RET= followed by
-the desired language (remember to enclose it in quotation marks, since
-that variable must be a string).  Similarly, you can use
-[[https://www.gnu.org/software/emacs/manual/html_node/elisp/Directory-Local-Variables.html][directory-local variables]] to adjust the spellchecking language for
-collections of files.
-
-When using Hunspell, you can set those variables to a comma-separated
-list of dictionaries for multi-language spellchecking.  See the
-explanation of the =-d= switch in Hunspell's man page for more
-information.
+You can set the default dictionary by customizing the variable
+=jit-spell-dictionary=.  If it is nil, the default dictionary is
+determined by the “legacy” =ispell-dictionary= variable or your
+system's locale setting.
 
 ** Major mode support
 
