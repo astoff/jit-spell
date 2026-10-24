@@ -847,13 +847,24 @@ It can also be bound to a mouse click to pop up the menu."
 (defvar-keymap jit-spell--dict-modeline-map
   "<mode-line> <mouse-1>" #'jit-spell-dictionary)
 
+(defvar-local jit-spell--dict-modeline nil
+  "Memoization place for the function of same name.'")
+
 (defun jit-spell--dict-modeline ()
-  (when-let* ((dicts (jit-spell--dicts)))
-    `((:propertize "/")
-      (:propertize ,(string-join dicts ",")
-                   keymap ,jit-spell--dict-modeline-map
-                   help-echo "Change dictionary"
-		   mouse-face mode-line-highlight))))
+  (with-memoization jit-spell--dict-modeline
+    (when-let* ((dicts (jit-spell--dicts)))
+      `((:propertize "/")
+        (:propertize ,(mapconcat (lambda (s)
+                                   (replace-regexp-in-string "_.*" "" s))
+                                 dicts ",")
+                     keymap ,jit-spell--dict-modeline-map
+                     help-echo ,(format "Current dictionaries: %s"
+                                        (string-join dicts ", "))
+	             mouse-face mode-line-highlight)))))
+
+(cl-defmethod jit-spell--drop-buffer :after (buffer)
+  (with-current-buffer buffer
+    (setq jit-spell--dict-modeline nil)))
 
 ;;;###autoload
 (define-minor-mode jit-spell-mode
