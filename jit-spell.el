@@ -3,7 +3,7 @@
 ;; Copyright (C) 2023-2024  Free Software Foundation, Inc.
 
 ;; Author: Augusto Stoffel <arstoffel@gmail.com>
-;; Keywords: tools, wp
+;; Keywords: text
 ;; URL: https://github.com/astoff/jit-spell
 ;; Package-Requires: ((emacs "28.1") (compat "31.1"))
 ;; Version: 0.5

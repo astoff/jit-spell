@@ -10,13 +10,11 @@ browser does.
 [[https://raw.githubusercontent.com/astoff/jit-spell/images/screenshot.png]]
 
 This behavior is different from the built-in Flyspell package, which
-only checks words as the cursor moves over them.  Moreover, unlike
-Flyspell, jit-spell communicates with the spell-checking subprocess
-entirely asynchronously, which can lead to a noticeable performance
-improvement.
+only checks words as the cursor moves over them.
 
-jit-spell is part of [[https://elpa.gnu.org][GNU ELPA]] and can be installed with
-=M-x package-install RET jit-spell RET=.
+jit-spell is part of [[https://elpa.gnu.org][GNU ELPA]] and can be installed with =M-x
+package-install RET jit-spell RET=.  As a complement, you may also
+want to install the vibe-spell package; see section “Engines” below.
 
 ** Usage
 
@@ -39,11 +37,6 @@ the following to your init file:
 Try also =M-x customize-group RET jit-spell RET= to see a listing of
 all possible customization options.
 
-Many customization options from the built-in =ispell= library are also
-relevant, notably =ispell-program-name=.  Hunspell and Aspell are the
-most common choices.  Aspell is faster, but in my experience Hunspell
-has better correction suggestions and is sufficiently performant.
-
 ** Language selection
 
 Type =M-x jit-spell-dictionary RET= to choose a different spelling
@@ -51,9 +44,9 @@ language (or languages).  You also call that command with a prefix
 argument in order to save the dictionary choice permanently, either as
 a [[https://www.gnu.org/software/emacs/manual/html_node/elisp/File-Local-Variables.html][file-local variable]] or [[https://www.gnu.org/software/emacs/manual/html_node/elisp/Directory-Local-Variables.html][dir-local variable]].
 
-You can set the default dictionary by customizing the variable
-=jit-spell-dictionary=.  If it is nil, the default dictionary is
-determined by the “legacy” =ispell-dictionary= variable or your
+Moreover, you can set the default dictionary by customizing the
+variable =jit-spell-dictionary=.  If it is nil, the default dictionary
+is determined by the “legacy” =ispell-dictionary= variable or your
 system's locale setting.
 
 ** Major mode support
@@ -70,6 +63,21 @@ present on a given character, you can use the =describe-char= command.
 In all programming language modes, spell checking is restricted to
 comments, docstrings and strings.  This can be modified by customizing
 the variable =jit-spell-prog-mode-faces=.
+
+** Spellchecking engines
+
+jit-spell supports two spellchecking backends.  The default method is
+to run a spellchecker as a subprocess, using the standard =ispell -a=
+interface.  This forces us to compute all correction suggestions for
+misspellings eagerly, even if they will never be used.  As a
+consequence, it takes (visibly) longer to complete uses considerably
+more systems resources.  That said, since jit-spell runs
+asynchronously, it should not slow down Emacs itself.
+
+As a better performing alternative, jit-spell can use vibe-spell, a
+spell checker in pure Emacs Lisp.  It suffices to install that
+package.  When it is available, jit-spell selects it automatically as
+the engine.
 
 ** Contributing
 
