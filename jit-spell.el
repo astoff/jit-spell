@@ -427,7 +427,10 @@ upcoming requests."
          (proc (cdr (assoc params jit-spell--ispell-process))))
     (if (process-live-p proc)
         proc
-      (let* ((dicts (string-join (cadr params) ","))
+      (let* ((default-directory (expand-file-name "~/"))
+             (process-environment (default-value 'process-environment))
+             (exec-path (default-value 'exec-path))
+             (dicts (string-join (cadr params) ","))
              (name (format "jit-spell-%s" dicts))
              (proc (make-process
                     :name name
