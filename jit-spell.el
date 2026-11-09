@@ -6,7 +6,7 @@
 ;; Keywords: text
 ;; URL: https://github.com/astoff/jit-spell
 ;; Package-Requires: ((emacs "28.1") (compat "31.1"))
-;; Version: 0.5
+;; Version: 0.6
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -44,6 +44,13 @@
 ;; jit-spell relies on the `ispell' library to pick a spell checking
 ;; program and dictionaries.  Try `M-x customize-group RET ispell RET'
 ;; to see a listing of all possible settings.
+
+;;; News:
+
+;; Version 0.6
+;; - Add `jit-spell-dictionary' variable and rename the
+;;  `jit-spell-change-dictionary' to `jit-spell-dictionary'.
+;; - Define `jit-spell-engine' and add support for vibe-spell.
 
 ;;; Code:
 
