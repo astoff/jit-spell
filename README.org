@@ -14,7 +14,7 @@ only checks words as the cursor moves over them.
 
 jit-spell is part of [[https://elpa.gnu.org][GNU ELPA]] and can be installed with =M-x
 package-install RET jit-spell RET=.  As a complement, you may also
-want to install the [[https://github.com/astoff/vibe-spell][vibe-spell]] package; see section “Engines” below.
+want to install the [[https://github.com/astoff/elspell][elspell]] package; see section “Engines” below.
 
 ** Usage
 
@@ -74,13 +74,13 @@ consequence, it takes (visibly) longer to complete and uses more
 systems resources.  That said, since jit-spell runs asynchronously, it
 should not slow down Emacs itself.
 
-As a better performing alternative, jit-spell can use [[https://github.com/astoff/vibe-spell][vibe-spell]], a
+As a better performing alternative, jit-spell can use [[https://github.com/astoff/elspell][elspell]], a
 port of Hunspell to pure Emacs Lisp.  It is selected automatically as
 the jit-spell backend when available, so it suffices to install that
 package with the following command:
 
 #+begin_src
-M-x package-vc-install RET https://github.com/astoff/vibe-spell RET
+M-x package-vc-install RET https://github.com/astoff/elspell RET
 #+end_src
 
 ** Contributing

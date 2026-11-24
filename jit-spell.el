@@ -58,7 +58,7 @@
 (require 'compat)
 (require 'ispell)
 (require 'text-property-search)
-(require 'vibe-spell nil t)
+(require 'elspell nil t)
 
 (defgroup jit-spell nil
   "Check spelling as you type."
@@ -122,12 +122,12 @@ which the command `jit-spell-correct-word' is bound."
                  (string :tag "Key")
                  (const :tag "None" nil)))
 
-(defcustom jit-spell-engine (if (featurep 'vibe-spell)
-                                'vibe-spell 'ispell)
+(defcustom jit-spell-engine (if (featurep 'elspell)
+                                'elspell 'ispell)
   "The spell-checking engine to use.
-Can be either `vibe-spell', which is recommended but is an external
+Can be either `elspell', which is recommended but is an external
 package, or `ispell', which is built-in."
-  :type '(choice (const vibe-spell) (const ispell)))
+  :type '(choice (const elspell) (const ispell)))
 
 (defcustom jit-spell-dictionary nil
   "One or more dictionaries used for spellchecking.
@@ -324,49 +324,49 @@ Force refontification of the region, unless LAX is non-nil."
                         "\\..*" "" current-locale-environment)))
       (user-error "Unable to guess a dictionary, please set `jit-spell-dictionary'")))
 
-;;; vibe-spell interface implementation
+;;; Elspell interface implementation
 
-(declare-function vibe-spell-add-word "ext:vibe-spell")
-(declare-function vibe-spell-check "ext:vibe-spell")
-(declare-function vibe-spell-create "ext:vibe-spell")
-(declare-function vibe-spell-list-dictionaries "ext:vibe-spell")
-(declare-function vibe-spell-remove-word "ext:vibe-spell")
-(declare-function vibe-spell-suggest "ext:vibe-spell")
-(declare-function vibe-spell-word-regexp "ext:vibe-spell")
+(declare-function elspell-add-word "ext:elspell")
+(declare-function elspell-check "ext:elspell")
+(declare-function elspell-create "ext:elspell")
+(declare-function elspell-list-dictionaries "ext:elspell")
+(declare-function elspell-remove-word "ext:elspell")
+(declare-function elspell-suggest "ext:elspell")
+(declare-function elspell-word-regexp "ext:elspell")
 
-(defvar jit-spell--vspell-timer nil
+(defvar jit-spell--elspell-timer nil
   "Idle timer for next request to be fulfilled.")
 
-(defvar jit-spell--vspell-queue nil
+(defvar jit-spell--elspell-queue nil
   "Queue of requests waiting to be fulfilled.")
 
-(defvar jit-spell--vspell-dicts nil
-  "Memoization place for function `jit-spell--vspell-dicts'.")
+(defvar jit-spell--elspell-dicts nil
+  "Memoization place for function `jit-spell--elspell-dicts'.")
 
-(defun jit-spell--vspell-dicts ()
+(defun jit-spell--elspell-dicts ()
   "Return a list of dictionaries for the current buffer."
   (mapcar (lambda (name)
-            (with-memoization (alist-get name jit-spell--vspell-dicts
+            (with-memoization (alist-get name jit-spell--elspell-dicts
                                          nil nil #'string=)
-              (vibe-spell-create name)))
+              (elspell-create name)))
           (jit-spell--dicts)))
 
-(defun jit-spell--vspell-check (request)
+(defun jit-spell--elspell-check (request)
   "Perform the actual checking of a given region.
 REQUEST a list once passed to jit-spell--schedule`."
-  (setq jit-spell--vspell-timer
-        (when-let* ((next (pop jit-spell--vspell-queue)))
+  (setq jit-spell--elspell-timer
+        (when-let* ((next (pop jit-spell--elspell-queue)))
           (run-with-idle-timer
-           0 nil #'jit-spell--vspell-check next)))
+           0 nil #'jit-spell--elspell-check next)))
   (pcase-let ((`(,buffer ,_ ,start ,end) request))
     (when (jit-spell--verify-or-reschedule request)
       (with-current-buffer buffer
         (save-excursion
           (without-restriction
             (with-silent-modifications
-              (let* ((dicts (jit-spell--vspell-dicts))
+              (let* ((dicts (jit-spell--elspell-dicts))
                      (opoint (point))
-                     (re (vibe-spell-word-regexp (car dicts))))
+                     (re (elspell-word-regexp (car dicts))))
                 (remove-list-of-text-properties start end '(jit-spell-pending))
                 (jit-spell--remove-overlays start end)
                 (goto-char start)
@@ -376,42 +376,42 @@ REQUEST a list once passed to jit-spell--schedule`."
                         (word (match-string 0)))
                     (unless (or (funcall jit-spell--ignored-p wstart)
                                 (any (lambda (dict)
-                                       (vibe-spell-check dict word))
+                                       (elspell-check dict word))
                                      dicts))
                       (jit-spell--make-overlay wstart wend opoint))))))))))))
 
 (cl-defmethod jit-spell--schedule
-    (request &context (jit-spell-engine (eql vibe-spell)))
-  (if jit-spell--vspell-timer
-      (cl-callf nconc jit-spell--vspell-queue (list request))
-    (setq jit-spell--vspell-timer
+    (request &context (jit-spell-engine (eql elspell)))
+  (if jit-spell--elspell-timer
+      (cl-callf nconc jit-spell--elspell-queue (list request))
+    (setq jit-spell--elspell-timer
           (run-with-idle-timer
-           0 nil #'jit-spell--vspell-check request))))
+           0 nil #'jit-spell--elspell-check request))))
 
 (cl-defmethod jit-spell--drop-buffer
-    (buffer &context (jit-spell-engine (eql vibe-spell)))
+    (buffer &context (jit-spell-engine (eql elspell)))
   ;; FIXME: How about current timer?
-  (setq jit-spell--vspell-queue
+  (setq jit-spell--elspell-queue
         (seq-remove (lambda (r) (eq (car r) buffer))
-                    jit-spell--vspell-queue)))
+                    jit-spell--elspell-queue)))
 
 (cl-defmethod jit-spell--get-suggestions
-    (ov &context (jit-spell-engine (eql vibe-spell)))
-  (vibe-spell-suggest (car (jit-spell--vspell-dicts))
+    (ov &context (jit-spell-engine (eql elspell)))
+  (elspell-suggest (car (jit-spell--elspell-dicts))
                       (buffer-substring-no-properties (overlay-start ov)
                                                       (overlay-end ov))))
 
 (cl-defmethod jit-spell--save-word
-    (word &context (jit-spell-engine (eql vibe-spell)))
-  (vibe-spell-add-word (car (jit-spell--vspell-dicts)) word t))
+    (word &context (jit-spell-engine (eql elspell)))
+  (elspell-add-word (car (jit-spell--elspell-dicts)) word t))
 
 (cl-defmethod jit-spell--delete-word
-    (word &context (jit-spell-engine (eql vibe-spell)))
-  (vibe-spell-remove-word (car (jit-spell--vspell-dicts)) word t))
+    (word &context (jit-spell-engine (eql elspell)))
+  (elspell-remove-word (car (jit-spell--elspell-dicts)) word t))
 
 (cl-defmethod jit-spell--list-dictionaries
-    (&context (jit-spell-engine (eql vibe-spell)))
-  (vibe-spell-list-dictionaries))
+    (&context (jit-spell-engine (eql elspell)))
+  (elspell-list-dictionaries))
 
 ;;; ispell pipe interface implementation
 
