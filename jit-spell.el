@@ -6,7 +6,7 @@
 ;; Keywords: text
 ;; URL: https://github.com/astoff/jit-spell
 ;; Package-Requires: ((emacs "28.1") (compat "31.1"))
-;; Version: 0.6
+;; Version: 0.6.1
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -47,6 +47,9 @@
 
 ;;; News:
 
+;; Version 0.6.1
+;; - Rename vibe-spell to Elspell.
+;;
 ;; Version 0.6
 ;; - Add `jit-spell-dictionary' variable and rename the
 ;;  `jit-spell-change-dictionary' to `jit-spell-dictionary'.
